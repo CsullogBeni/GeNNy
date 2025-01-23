@@ -1,0 +1,31 @@
+Code2Vec, Node2Vec
+https://github.com/tech-srl/code2vec?tab=readme-ov-file
+
+GNN-modern graph representation and vectorization
+https://github.com/diningphil/gnn-comparison?tab=readme-ov-file
+
+Random walk vectorization
+In gremlin:
+1. random walk with junctions
+GraphTraversalSource g = graph.traversal();
+List<Vertex> randomWalk = g.V().hasLabel("Id")
+                             .repeat(__.out().simplePath())  // Random walk
+                             .times(10)                    // Walk 10 steps
+                             .toList();
+2. vector generating
+List<double[]> vectors = new ArrayList<>();
+for (Vertex vertex : walk) {
+    double[] vector = generateVector(vertex);  // one-hot encoding
+    vectors.add(vector);
+}
+
+public double[] generateVector(Vertex vertex) {
+    double[] vector = new double[100];  // 100 dimension vector
+    int index = getVertexIndex(vertex); // get index
+    vector[index] = 1.0;
+    return vector;
+}
+
+Other vectorization methods with existing softwares:
+- DeepGraph: Java library for graph handling and learning
+- Apache Spark GraphX: A Spark GraphX module that helps the graph analisys and vectorization o great scale
