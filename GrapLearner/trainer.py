@@ -34,7 +34,7 @@ class Trainer:
         # self._loss_fn = nn.MSELoss()
 
         original_data = self._data
-        for epoch in range(20000):
+        '''for epoch in range(20000):
             if epoch % 100 == 0 and epoch > 0:
                 self._data = self._modify_graph(original_data, removal_ratio=(epoch / 10000) * 0.5)
             loss = self._train()
@@ -42,22 +42,38 @@ class Trainer:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
 
             if epoch == 200:
-                self._data = self._modify_graph(self._data, removal_ratio=0.2)
+                self._data = self._modify_graph(self._data, removal_ratio=0.2)'''
+        self.load()
         self._reconstructed_data = self._reconstruct_graph(original_data)
-        assert original_data.x.shape == self._reconstructed_data.x.shape
-        assert original_data.edge_index.shape == self._reconstructed_data.edge_index.shape
+        '''self.save()'''
 
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        '''assert original_data.x.shape == self._reconstructed_data.x.shape
+        assert original_data.edge_index.shape == self._reconstructed_data.edge_index.shape'''
+
+        '''fig, axes = plt.subplots(1, 3, figsize=(15, 5))
         self.draw_graph(axes[0], original_data, "Original Graph", with_arrows=False)
         self.draw_graph(axes[1], self._data, "Incomplete Graph", with_arrows=False)
         self.draw_graph(axes[2], self._reconstructed_data, "Reconstructed Graph", with_arrows=True)
-        plt.show()
+        plt.show()'''
 
     @property
     def get_reconstructed_graph(self) -> nx.DiGraph:
         g = nx.DiGraph()
         g.add_edges_from(self._reconstructed_data.edge_index.T.tolist())
-        node_attrs = {node: {'value': self._reconstructed_data.x[node].numpy().tolist()} for node in g.nodes}
+
+        # Eredeti attribútumok visszaállítása
+        node_attrs = {}
+        for node in g.nodes:
+            vector = self._reconstructed_data.x[node].numpy().tolist()
+            # Eredeti attribútumok dekódolása
+            node_attrs[node] = {
+                "nodeId": int(vector[0]),
+                "line": int(vector[1]),
+                "start": int(vector[2]),
+                "end": int(vector[3]),
+                "value": vector[4] if vector[4] != -1 else None,
+                "class_": self._encoder.categories_[0][np.argmax(vector[5:])].item()
+            }
         nx.set_node_attributes(g, node_attrs)
         return g
 
@@ -138,6 +154,57 @@ class Trainer:
         nx.draw_networkx_labels(G, pos, ax=ax)
         ax.set_title(title)
 
+    @staticmethod
+    def compare_graphs(original_g: nx.DiGraph, reconstructed_g: nx.DiGraph):
+        differences = {
+            "missing_edges": [],
+            "extra_edges": [],
+            "node_attribute_differences": []
+        }
+
+        original_edges_to_convert = set(original_g.edges())
+        reconstructed_edges = set(reconstructed_g.edges())
+
+        original_edges = []
+        for tuple in original_edges_to_convert:
+            original_edges.append((int(tuple[0]), int(tuple[1])))
+        '''print(sorted(original_edges))
+        print(sorted(reconstructed_edges))'''
+
+        differences["missing_edges"] = []
+        for edge in original_edges:
+            if edge not in reconstructed_edges:
+                differences["missing_edges"].append(edge)
+
+        differences["extra_edges"] = []
+        for edge in reconstructed_edges:
+            if edge not in original_edges:
+                differences["extra_edges"].append(edge)
+
+        for index in range(len(original_g.nodes)):
+            original_node = original_g.nodes[str(index)].items()
+            reconstructed_node = reconstructed_g.nodes[index].items()
+
+            original_node = sorted(original_node)
+            reconstructed_node = sorted(reconstructed_node)
+
+            if original_node != reconstructed_node:
+                differences["node_attribute_differences"].append({
+                    "node": index,
+                    "original": original_node,
+                    "reconstructed": reconstructed_node
+                })
+
+        return differences
+
+    def save(self):
+        torch.save(self._model.state_dict(), "model.pth")
+
+    def load(self):
+        self._model = GNN(in_channels=self._node_features.shape[1], hidden_channels=16,
+                          out_channels=self._node_features.shape[1])
+        self._model.load_state_dict(torch.load("model.pth"))
+
 
 class GNN(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -159,4 +226,11 @@ graph.read_from_json(
     r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment.json")
 trainer = Trainer(graph.get_graph)
 reconstructed_graph = trainer.get_reconstructed_graph
-assert reconstructed_graph == graph.get_graph
+
+differences = Trainer.compare_graphs(graph.get_graph, reconstructed_graph)
+print(differences['missing_edges'])
+print(differences['extra_edges'])
+for item in differences['node_attribute_differences']:
+    print(f"Node {item['node']}:")
+    print('Original:', item['original'])
+    print('Reconstructed:', item['reconstructed'])
