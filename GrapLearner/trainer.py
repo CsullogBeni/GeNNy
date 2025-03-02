@@ -34,7 +34,7 @@ class Trainer:
         # self._loss_fn = nn.MSELoss()
 
         original_data = self._data
-        '''for epoch in range(20000):
+        for epoch in range(20000):
             if epoch % 100 == 0 and epoch > 0:
                 self._data = self._modify_graph(original_data, removal_ratio=(epoch / 10000) * 0.5)
             loss = self._train()
@@ -42,8 +42,8 @@ class Trainer:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
 
             if epoch == 200:
-                self._data = self._modify_graph(self._data, removal_ratio=0.2)'''
-        self.load()
+                self._data = self._modify_graph(self._data, removal_ratio=0.2)
+        '''self.load()'''
         self._reconstructed_data = self._reconstruct_graph(original_data)
         '''self.save()'''
 
@@ -103,8 +103,20 @@ class Trainer:
         num_edges = data.edge_index.shape[1]
         num_remove = int(removal_ratio * num_edges)
         mask = torch.ones(num_edges, dtype=torch.bool)
-        remove_indices = np.random.choice(num_edges, num_remove, replace=False)
-        mask[remove_indices] = False
+
+        # Legnagyobb indexű node-hoz kapcsolódó élek eltávolítása
+        nodes = data.edge_index[0].unique()
+        num_nodes = nodes.shape[0]
+
+        # Ha túl nagy a num_remove, csökkentsük le
+        num_remove = min(num_remove, num_nodes)
+
+        if num_remove > 0:
+            nodes_to_remove = nodes.topk(num_remove).values
+            remove_indices = [i for i, (src, _) in enumerate(data.edge_index.T.tolist())
+                              if src in nodes_to_remove]
+            mask[remove_indices] = False
+
         new_edge_index = data.edge_index[:, mask]
         return Data(x=data.x, edge_index=new_edge_index)
 
