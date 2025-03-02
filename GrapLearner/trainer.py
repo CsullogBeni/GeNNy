@@ -14,8 +14,13 @@ from GrapLearner.p4_graph import P4Graph
 class Trainer:
     def __init__(self, g: nx.DiGraph):
         self._classes = list(set(nx.get_node_attributes(g, 'class_').values()))
-        self._encoder = OneHotEncoder(handle_unknown='ignore')
-        self._encoder.fit(np.array(self._classes).reshape(-1, 1))
+        self._values = list(set(filter(None, nx.get_node_attributes(g, 'value').values())))
+
+        self._class_encoder = OneHotEncoder(handle_unknown='ignore')
+        self._class_encoder.fit(np.array(self._classes).reshape(-1, 1))
+
+        self._value_encoder = OneHotEncoder(handle_unknown='ignore')
+        self._value_encoder.fit(np.array(self._values).reshape(-1, 1))
         self._node_vectors = {node: self._node_to_vector(g.nodes[node]) for node in g.nodes}
 
         '''self._adj_matrix = nx.to_numpy_array(g)'''
@@ -30,13 +35,14 @@ class Trainer:
 
         self._model = GNN(in_channels=self._node_features.shape[1], hidden_channels=16,
                           out_channels=self._node_features.shape[1])
-        self._optimizer = optim.Adam(self._model.parameters(), lr=0.01)
+        self._optimizer = optim.Adam(self._model.parameters(), lr=0.001)
         # self._loss_fn = nn.MSELoss()
 
         original_data = self._data
-        for epoch in range(20000):
+        number_of_training_epochs = 5000
+        for epoch in range(number_of_training_epochs):
             if epoch % 100 == 0 and epoch > 0:
-                self._data = self._modify_graph(original_data, removal_ratio=(epoch / 10000) * 0.5)
+                self._data = self._modify_graph(original_data, removal_ratio=(epoch / number_of_training_epochs) * 0.5)
             loss = self._train()
             if epoch % 100 == 0:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
@@ -61,19 +67,27 @@ class Trainer:
         g = nx.DiGraph()
         g.add_edges_from(self._reconstructed_data.edge_index.T.tolist())
 
-        # Eredeti attribútumok visszaállítása
         node_attrs = {}
         for node in g.nodes:
             vector = self._reconstructed_data.x[node].numpy().tolist()
-            # Eredeti attribútumok dekódolása
+
+            value_encoded_size = len(self._value_encoder.categories_[0])
+            value_vector = vector[4:4 + value_encoded_size]
+            class_vector = vector[4 + value_encoded_size:]
+
+            value_decoded = self._value_encoder.categories_[0][np.argmax(value_vector)] if np.max(
+                value_vector) > 0 else None
+            class_decoded = self._class_encoder.categories_[0][np.argmax(class_vector)]
+
             node_attrs[node] = {
                 "nodeId": int(vector[0]),
                 "line": int(vector[1]),
                 "start": int(vector[2]),
                 "end": int(vector[3]),
-                "value": vector[4] if vector[4] != -1 else None,
-                "class_": self._encoder.categories_[0][np.argmax(vector[5:])].item()
+                "value": value_decoded,
+                "class_": class_decoded
             }
+
         nx.set_node_attributes(g, node_attrs)
         return g
 
@@ -82,12 +96,18 @@ class Trainer:
         line = attrs.get("line", 0)
         start = attrs.get("start", 0)
         end = attrs.get("end", 0)
-        value = attrs.get("value", "None")
+
+        value = attrs.get("value", None)
         class_ = attrs.get("class_", "Unknown")
 
-        class_encoded = self._encoder.transform([[class_]])[0].toarray()[0]
-        value_numeric = float(value) if value and value.replace('.', '', 1).isdigit() else -1
-        return np.concatenate((np.array([node_id, line, start, end, value_numeric]), np.array(class_encoded)))
+        class_encoded = self._class_encoder.transform([[class_]]).toarray()[0]
+
+        if value is not None:
+            value_encoded = self._value_encoder.transform([[value]]).toarray()[0]
+        else:
+            value_encoded = np.zeros(self._value_encoder.categories_[0].shape[0])
+
+        return np.concatenate((np.array([node_id, line, start, end]), value_encoded, class_encoded))
 
     def _train(self):
         self._model.train()
