@@ -62,11 +62,3 @@ class P4Graph:
 
     def write_to_pkl(self, file_path):
         self._graph_reader.write_to_pkl(file_path)
-
-
-graph = P4Graph()
-graph.read_from_json(r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment.json")
-'''for node_id, attrs in graph.get_graph.nodes(data=True):
-    print(f"NodeId: {attrs['nodeId']}, Line: {attrs['line']}, Start: {attrs['start']}, End: {attrs['end']}, Class: {attrs['class_']}, Value: {attrs['value']}")
-print(graph.get_graph.edges)'''
-graph.show_graph()

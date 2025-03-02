@@ -55,17 +55,3 @@ class P4GraphDataAccess(GraphReader, GraphWriter):
     @property
     def get_graph(self):
         return self._g
-
-
-grap_constructor = P4GraphDataAccess()
-grap_constructor.read_from_json(r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment.json")
-for node_id, attrs in grap_constructor.get_graph.nodes(data=True):
-    print(f"NodeId: {attrs['nodeId']}, Line: {attrs['line']}, Start: {attrs['start']}, End: {attrs['end']}, Class: {attrs['class_']}, Value: {attrs['value']}")
-print(grap_constructor.get_graph.edges)
-'''for inner_node in grap_constructor.get_graph.nodes:
-    print(inner_node)'''
-grap_constructor.write_to_json(r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment_2.json")
-g1 = grap_constructor.get_graph
-grap_constructor.read_from_json(r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment_2.json")
-g2 = grap_constructor.get_graph
-assert g1 == g2
