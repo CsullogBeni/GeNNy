@@ -39,10 +39,12 @@ class Trainer:
         # self._loss_fn = nn.MSELoss()
 
         original_data = self._data
-        number_of_training_epochs = 5000
+        number_of_training_epochs = 20000
         for epoch in range(number_of_training_epochs):
             if epoch % 100 == 0 and epoch > 0:
                 self._data = self._modify_graph(original_data, removal_ratio=(epoch / number_of_training_epochs) * 0.5)
+            '''self._train()
+            self._train()'''
             loss = self._train()
             if epoch % 100 == 0:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
@@ -70,20 +72,30 @@ class Trainer:
         node_attrs = {}
         for node in g.nodes:
             vector = self._reconstructed_data.x[node].numpy().tolist()
+            '''print(f"Node {node} reconstructed vector: {vector}")'''
 
             value_encoded_size = len(self._value_encoder.categories_[0])
             value_vector = vector[4:4 + value_encoded_size]
             class_vector = vector[4 + value_encoded_size:]
 
-            value_decoded = self._value_encoder.categories_[0][np.argmax(value_vector)] if np.max(
-                value_vector) > 0 else None
             class_decoded = self._class_encoder.categories_[0][np.argmax(class_vector)]
+            value_decoded = (self._value_encoder.categories_[0][np.argmax(value_vector)]
+                             if np.max(value_vector) > 0.2 and class_decoded == "TerminalNodeImpl" else None)
+
+            '''"nodeId": int(round(vector[0] * 10)),
+            "line": int(round(vector[1] * 10)),
+            "start": int(round(vector[2] * 10)),
+            "end": int(round(vector[3] * 10)),
+            "line": int(round(vector[1])),
+            "start": int(round(vector[2])),
+            "end": int(round(vector[3])),'''
+            '''print(node)'''
 
             node_attrs[node] = {
-                "nodeId": int(vector[0]),
-                "line": int(vector[1]),
-                "start": int(vector[2]),
-                "end": int(vector[3]),
+                "nodeId": int(node),  # int(round(vector[0])),
+                "line": int(round(vector[1])),
+                "start": int(round(vector[2])),
+                "end": int(round(vector[3])),
                 "value": value_decoded,
                 "class_": class_decoded
             }
@@ -92,10 +104,10 @@ class Trainer:
         return g
 
     def _node_to_vector(self, attrs):
-        node_id = attrs.get("nodeId", 0)
-        line = attrs.get("line", 0)
-        start = attrs.get("start", 0)
-        end = attrs.get("end", 0)
+        node_id = attrs.get("nodeId", 0) / 10
+        line = attrs.get("line", 0) / 10
+        start = attrs.get("start", 0) / 10
+        end = attrs.get("end", 0) / 10
 
         value = attrs.get("value", None)
         class_ = attrs.get("class_", "Unknown")
@@ -142,12 +154,15 @@ class Trainer:
 
     @staticmethod
     def loss_fn(output, target, edge_index):
-        node_loss = nn.MSELoss()(output, target)
+        node_loss = nn.MSELoss()(output[:, :4] * 10, target[:, :4] * 100)  # Nagyobb súlyt adunk az első 4 értéknek
+        feature_loss = nn.MSELoss()(output[:, 4:], target[:, 4:])  # Az egyéb jellemzők normál súlyon maradnak
+
         pred_edges = torch.mm(output, output.T)
         edge_target = torch.zeros_like(pred_edges)
         edge_target[edge_index[0], edge_index[1]] = 1
         edge_loss = nn.BCEWithLogitsLoss()(pred_edges, edge_target)
-        return node_loss + edge_loss
+
+        return node_loss + feature_loss + edge_loss
 
     @staticmethod
     def visualize_graph(original_data, modified_data, reconstructed_data):
@@ -243,7 +258,7 @@ class GNN(nn.Module):
         super(GNN, self).__init__()
         self.encoder = GCNConv(in_channels, hidden_channels)
         self.decoder = GCNConv(hidden_channels, out_channels)
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
