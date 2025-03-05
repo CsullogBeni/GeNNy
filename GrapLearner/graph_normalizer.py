@@ -56,11 +56,3 @@ class GraphNormalizer:
                 json.dump(self._data, f)
         except Exception as e:
             print(e)
-
-
-graph_normalizer = GraphNormalizer(
-    r'C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\full_graph.json')
-graph_normalizer.normalize()
-export_path = r'C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\full_graph_normalized.json'
-graph_normalizer.export_normalized_graph(export_path)
-print('success')
