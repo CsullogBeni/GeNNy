@@ -12,18 +12,29 @@ from GrapLearner.p4_graph import P4Graph
 
 
 class Trainer:
-    def __init__(self, g: nx.DiGraph):
+    def __init__(self):
+
+        self._classes = None
+        self._values = None
+        self._class_encoder = OneHotEncoder(handle_unknown='ignore')
+        self._value_encoder = OneHotEncoder(handle_unknown='ignore')
+        self._node_vectors = None
+        self._edge_index = None
+        self._node_features = None
+        self._data = None
+        self._model = None
+        self._optimizer = None
+        self._reconstructed_data = None
+
+    def train(self, g: nx.DiGraph):
         self._classes = list(set(nx.get_node_attributes(g, 'class_').values()))
         self._values = list(set(filter(None, nx.get_node_attributes(g, 'value').values())))
 
-        self._class_encoder = OneHotEncoder(handle_unknown='ignore')
         self._class_encoder.fit(np.array(self._classes).reshape(-1, 1))
 
-        self._value_encoder = OneHotEncoder(handle_unknown='ignore')
         self._value_encoder.fit(np.array(self._values).reshape(-1, 1))
         self._node_vectors = {node: self._node_to_vector(g.nodes[node]) for node in g.nodes}
 
-        '''self._adj_matrix = nx.to_numpy_array(g)'''
         edge_array = nx.to_numpy_array(g)
         edge_index = np.where(edge_array)
         self._edge_index = torch.tensor(edge_index, dtype=torch.long)
@@ -270,8 +281,9 @@ class GNN(nn.Module):
 
 graph = P4Graph()
 graph.read_from_json(
-    r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\assignment.json")
-trainer = Trainer(graph.get_graph)
+    r"C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\full_graph_normalized.json")
+trainer = Trainer()
+trainer.train(graph.get_graph)
 reconstructed_graph = trainer.get_reconstructed_graph
 
 differences = Trainer.compare_graphs(graph.get_graph, reconstructed_graph)
