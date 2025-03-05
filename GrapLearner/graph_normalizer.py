@@ -22,14 +22,24 @@ class GraphNormalizer:
         for node in self._data['nodes']:
             if not all(key in node for key in ['start', 'end', 'nodeId', 'class_']):
                 raise ValueError(f"Node {node['nodeId']} does not have all necessary properties")
+            node['nodeId'] = int(node['nodeId'])
+            node['start'] = int(node['start'])
+            node['end'] = int(node['end'])
+            node['line'] = int(node['line'])
+            node['class_'] = str(node['class_'])
+            if 'value' in node:
+                node['value'] = str(node['value'])
 
     def _check_edges(self):
-        edges = {"edges": []}
+        edges = []
         for edge in self._data['edges']:
-            source = self._find_node_id(int(edge['IN']['id']))
-            target = self._find_node_id(int(edge['OUT']['id']))
-            result = {"source": source, "target": target}
-            edges["edges"].append(result)
+            try:
+                source = self._find_node_id(int(edge['IN']['id']))
+                target = self._find_node_id(int(edge['OUT']['id']))
+                result = {"source": source, "target": target}
+                edges.append(result)
+            except Exception as e:
+                print(e)
         self._data['edges'] = edges
 
     def _find_node_id(self, id: int) -> int:
@@ -46,3 +56,11 @@ class GraphNormalizer:
                 json.dump(self._data, f)
         except Exception as e:
             print(e)
+
+
+graph_normalizer = GraphNormalizer(
+    r'C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\full_graph.json')
+graph_normalizer.normalize()
+export_path = r'C:\Users\Acer\OneDrive - Eotvos Lorand Tudomanyegyetem\Dokumentumok\git\P4\GrapLearner\full_graphs\full_graph_normalized.json'
+graph_normalizer.export_normalized_graph(export_path)
+print('success')

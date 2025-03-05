@@ -15,11 +15,13 @@ class P4GraphDataAccess(GraphReader, GraphWriter):
             with open(file_path, 'r') as f:
                 data = json.load(f)
                 for node in data['nodes']:
-                    self._g.add_node(str(node['nodeId']), nodeId=node['nodeId'], line=node['line'], start=node['start'],
-                                     end=node['end'], class_=node['class_'], value=node['value'])
+                    if 'value' not in node:
+                        node['value'] = None
+                    self._g.add_node(str(node['nodeId']), nodeId=int(node['nodeId']), line=int(node['line']), start=int(node['start']),
+                                     end=int(node['end']), class_=node['class_'], value=node['value'])
                 for edge in data['edges']:
                     self._g.add_edge(str(edge['source']), str(edge['target']))
-        except Exception as e:
+        except AttributeError as e:
             print("Error: ", e)
 
     def read_from_pkl(self, file_path):
