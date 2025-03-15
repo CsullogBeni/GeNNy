@@ -62,3 +62,45 @@ class P4Graph:
 
     def write_to_pkl(self, file_path):
         self._graph_reader.write_to_pkl(file_path)
+
+    def compare_graphs(self, given_g: nx.DiGraph):
+        original_g = self._g
+        differences = {
+            "missing_edges": [],
+            "extra_edges": [],
+            "node_attribute_differences": []
+        }
+
+        original_edges_to_convert = set(original_g.edges())
+        reconstructed_edges = set(given_g.edges())
+
+        original_edges = []
+        for tuple in original_edges_to_convert:
+            original_edges.append((int(tuple[0]), int(tuple[1])))
+
+        differences["missing_edges"] = []
+        for edge in original_edges:
+            if edge not in reconstructed_edges:
+                differences["missing_edges"].append(edge)
+
+        differences["extra_edges"] = []
+        for edge in reconstructed_edges:
+            if edge not in original_edges:
+                differences["extra_edges"].append(edge)
+
+        for index in range(len(original_g.nodes)):
+            print(index)
+            original_node = original_g.nodes[str(index)].items()
+            reconstructed_node = given_g.nodes[index].items()
+
+            original_node = sorted(original_node)
+            reconstructed_node = sorted(reconstructed_node)
+
+            if original_node != reconstructed_node:
+                differences["node_attribute_differences"].append({
+                    "node": index,
+                    "original": original_node,
+                    "reconstructed": reconstructed_node
+                })
+
+        return differences

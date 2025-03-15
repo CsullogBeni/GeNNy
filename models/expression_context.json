@@ -1,0 +1,13 @@
+{
+  "nodes": [
+    {"nodeId": 0, "line": 1, "start": 1, "end": 1, "class_": "ExpressionContext", "value": null},
+    {"nodeId": 1, "line": 1, "start": 1, "end": 1, "class_": "NonTypeNameContext", "value": null},
+    {"nodeId": 2, "line": 1, "start": 1, "end": 1, "class_": "Type_or_idContext", "value": null},
+    {"nodeId": 3, "line": 1, "start": 1, "end": 1, "class_": "TerminalNodeImpl", "value": "dstAddr"}
+    ],
+  "edges": [
+    {"source": 0, "target": 1},
+    {"source": 1, "target": 2},
+    {"source": 2, "target": 3}
+    ]
+}
