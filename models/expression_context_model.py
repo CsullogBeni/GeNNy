@@ -61,8 +61,7 @@ class ExpressionContextTrainer:
 
         self._reconstructed_data = self._reconstruct_graph(original_data)
 
-    @property
-    def get_reconstructed_graph(self) -> nx.DiGraph:
+    def get_reconstructed_graph(self, start, end, line, terminal_node) -> nx.DiGraph:
         g = nx.DiGraph()
         g.add_edges_from(self._reconstructed_data.edge_index.T.tolist())
 
@@ -75,10 +74,17 @@ class ExpressionContextTrainer:
             class_vector = vector[value_encoded_size:]
 
             class_decoded = self._class_encoder.categories_[0][np.argmax(class_vector)]
-            value_decoded = (self._value_encoder.categories_[0][np.argmax(value_vector)]
-                             if np.max(value_vector) > 0.2 and class_decoded == "TerminalNodeImpl" else None)
+
+            if class_decoded == "TerminalNodeImpl":
+                value_decoded = terminal_node
+            else:
+                value_decoded = None
 
             node_attrs[node] = {
+                "nodeId": node,
+                "start": start,
+                "end": end,
+                "line": line,
                 "class_": class_decoded,
                 "value": value_decoded
             }
@@ -151,7 +157,7 @@ og_graph.read_from_json(r"expression_context.json")
 expression_context_model = ExpressionContextTrainer()
 expression_context_model.train(og_graph.get_graph)
 terminal_node_impl = "dstAddr"
-reconstructed_graph = expression_context_model.get_reconstructed_graph
+reconstructed_graph = expression_context_model.get_reconstructed_graph(1, 1, 1, "dstAddr")
 
 differences = og_graph.compare_graphs(reconstructed_graph)
 print(differences['missing_edges'])
