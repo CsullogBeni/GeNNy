@@ -14,7 +14,6 @@ from pretty_printer.pretty_printer import PrettyPrinter
 
 class ExpressionContextTrainer:
     def __init__(self):
-
         self._classes = None
         self._values = None
         self._class_encoder = OneHotEncoder(handle_unknown='ignore')
@@ -32,7 +31,6 @@ class ExpressionContextTrainer:
         self._values = list(set(filter(None, nx.get_node_attributes(g, 'value').values())))
 
         self._class_encoder.fit(np.array(self._classes).reshape(-1, 1))
-
         self._value_encoder.fit(np.array(self._values).reshape(-1, 1))
         self._node_vectors = {node: self._node_to_vector(g.nodes[node]) for node in g.nodes}
 
@@ -48,33 +46,20 @@ class ExpressionContextTrainer:
         self._model = GNN(in_channels=self._node_features.shape[1], hidden_channels=16,
                           out_channels=self._node_features.shape[1])
         self._optimizer = optim.Adam(self._model.parameters(), lr=0.001)
-        # self._loss_fn = nn.MSELoss()
 
         original_data = self._data
         number_of_training_epochs = 1500
         for epoch in range(number_of_training_epochs):
             if epoch % 100 == 0 and epoch > 0:
                 self._data = self._modify_graph(original_data, removal_ratio=(epoch / number_of_training_epochs) * 0.5)
-            '''self._train()
-            self._train()'''
             loss = self._train()
             if epoch % 100 == 0:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
 
             if epoch == 200:
                 self._data = self._modify_graph(self._data, removal_ratio=0.2)
-        '''self.load()'''
+
         self._reconstructed_data = self._reconstruct_graph(original_data)
-        '''self.save()'''
-
-        '''assert original_data.x.shape == self._reconstructed_data.x.shape
-        assert original_data.edge_index.shape == self._reconstructed_data.edge_index.shape'''
-
-        '''fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        self.draw_graph(axes[0], original_data, "Original Graph", with_arrows=False)
-        self.draw_graph(axes[1], self._data, "Incomplete Graph", with_arrows=False)
-        self.draw_graph(axes[2], self._reconstructed_data, "Reconstructed Graph", with_arrows=True)
-        plt.show()'''
 
     @property
     def get_reconstructed_graph(self) -> nx.DiGraph:
@@ -86,31 +71,22 @@ class ExpressionContextTrainer:
             vector = self._reconstructed_data.x[node].numpy().tolist()
 
             value_encoded_size = len(self._value_encoder.categories_[0])
-            value_vector = vector[4:4 + value_encoded_size]
-            class_vector = vector[4 + value_encoded_size:]
+            value_vector = vector[:value_encoded_size]
+            class_vector = vector[value_encoded_size:]
 
             class_decoded = self._class_encoder.categories_[0][np.argmax(class_vector)]
             value_decoded = (self._value_encoder.categories_[0][np.argmax(value_vector)]
                              if np.max(value_vector) > 0.2 and class_decoded == "TerminalNodeImpl" else None)
 
             node_attrs[node] = {
-                "nodeId": int(node),  # int(round(vector[0])),
-                "line": int(round(vector[1])),
-                "start": int(round(vector[2])),
-                "end": int(round(vector[3])),
-                "value": value_decoded,
-                "class_": class_decoded
+                "class_": class_decoded,
+                "value": value_decoded
             }
 
         nx.set_node_attributes(g, node_attrs)
         return g
 
     def _node_to_vector(self, attrs):
-        node_id = attrs.get("nodeId", 0) / 10
-        line = attrs.get("line", 0) / 10
-        start = attrs.get("start", 0) / 10
-        end = attrs.get("end", 0) / 10
-
         value = attrs.get("value", None)
         class_ = attrs.get("class_", "Unknown")
 
@@ -121,7 +97,7 @@ class ExpressionContextTrainer:
         else:
             value_encoded = np.zeros(self._value_encoder.categories_[0].shape[0])
 
-        return np.concatenate((np.array([node_id, line, start, end]), value_encoded, class_encoded))
+        return np.concatenate((value_encoded, class_encoded))
 
     def _train(self):
         self._model.train()
@@ -138,11 +114,9 @@ class ExpressionContextTrainer:
         num_remove = int(removal_ratio * num_edges)
         mask = torch.ones(num_edges, dtype=torch.bool)
 
-        # Legnagyobb indexű node-hoz kapcsolódó élek eltávolítása
         nodes = data.edge_index[0].unique()
         num_nodes = nodes.shape[0]
 
-        # Ha túl nagy a num_remove, csökkentsük le
         num_remove = min(num_remove, num_nodes)
 
         if num_remove > 0:
@@ -156,15 +130,14 @@ class ExpressionContextTrainer:
 
     @staticmethod
     def loss_fn(output, target, edge_index):
-        node_loss = nn.MSELoss()(output[:, :4] * 10, target[:, :4] * 100)  # Nagyobb súlyt adunk az első 4 értéknek
-        feature_loss = nn.MSELoss()(output[:, 4:], target[:, 4:])  # Az egyéb jellemzők normál súlyon maradnak
+        feature_loss = nn.MSELoss()(output, target)  # Csak a class_ és value attribútumokra vonatkozó hiba
 
         pred_edges = torch.mm(output, output.T)
         edge_target = torch.zeros_like(pred_edges)
         edge_target[edge_index[0], edge_index[1]] = 1
         edge_loss = nn.BCEWithLogitsLoss()(pred_edges, edge_target)
 
-        return node_loss + feature_loss + edge_loss
+        return feature_loss + edge_loss
 
     def _reconstruct_graph(self, data):
         self._model.eval()
