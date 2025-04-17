@@ -123,7 +123,9 @@ class ParamOrderModel:
         predicted_order = self.infer_permutation()
 
         reordered_graph = self.graph_original.copy()
-        reordered_param_nodes = [self.param_nodes_orig[i] for i in predicted_order]
+        # Frissítjük a node ID listát a másolt gráfra
+        param_nodes_orig = self.get_ordered_parameters(reordered_graph)
+        reordered_param_nodes = [param_nodes_orig[i] for i in predicted_order]
 
         # Megkeressük a ParameterListContext node-ot
         param_root = None
@@ -131,30 +133,61 @@ class ParamOrderModel:
             if data.get("class_") in {"ParameterListContext", "NonEmptyParameterListContext"}:
                 param_root = node_id
                 break
-
         if param_root is None:
             raise ValueError("Nem található ParameterListContext a gráfban.")
 
-        # Töröljük az összes gyereket
-        for child in list(reordered_graph.successors(param_root)):
-            reordered_graph.remove_edge(param_root, child)
+        # Összes leszármazott kiszedése a paraméterekhez (részgráf mentés)
+        def get_subtree_nodes(root):
+            visited = set()
+            stack = [root]
+            while stack:
+                node = stack.pop()
+                if node not in visited:
+                    visited.add(node)
+                    stack.extend(reordered_graph.successors(node))
+            return visited
 
-        # Töröljük az összes gyereket
-        for child in list(reordered_graph.successors(param_root)):
-            reordered_graph.remove_edge(param_root, child)
+        # eredeti vessző node-ok lekérése
+        comma_nodes = [
+            nid for nid in reordered_graph.successors(param_root)
+            if reordered_graph.nodes[nid].get("class_") == "TerminalNodeImpl" and
+               reordered_graph.nodes[nid].get("value") == ","
+        ]
 
-        # vessző node-okat kikeressük egyszer, és sorban használjuk
-        comma_nodes = [nid for nid, d in self.graph_original.nodes(data=True)
-                       if d.get("class_") == "TerminalNodeImpl" and d.get("value") == "," and
-                       nid in self.graph_original.successors(param_root)]
-        comma_idx = 0
+        # töröljük a teljes eredeti paraméter részgráfokat a param_root-ból (de a node-okat megtartjuk)
+        def get_full_param_subtree_roots():
+            roots = []
+            for nid in reordered_graph.successors(param_root):
+                if reordered_graph.nodes[nid].get("class_") == "ParameterContext":
+                    roots.append(nid)
+                elif reordered_graph.nodes[nid].get("class_") == "TerminalNodeImpl" and reordered_graph.nodes[nid].get(
+                        "value") == ",":
+                    roots.append(nid)
+            return roots
 
-        # Helyreállítjuk a paraméterlistát új sorrendben
+        for nid in get_full_param_subtree_roots():
+            reordered_graph.remove_edge(param_root, nid)
+
+        # új start mezők hozzárendelése
+        base_start = min(reordered_graph.nodes[nid]["start"] for nid in reordered_param_nodes) - 100
+        new_starts = list(range(base_start, base_start + len(reordered_param_nodes) * 20, 20))
+        new_commas = list(range(base_start + 10, base_start + len(reordered_param_nodes) * 20 - 10, 20))
+
+        # visszakötjük a paraméterekhez tartozó részgráfokat új sorrendben
         for i, node_id in enumerate(reordered_param_nodes):
+            subtree_nodes = get_subtree_nodes(node_id)
+            # új start értéket adunk a teljes részgráfnak (a gyökkel kezdve)
+            offset = new_starts[i] - reordered_graph.nodes[node_id]['start']
+            for nid in subtree_nodes:
+                reordered_graph.nodes[nid]['start'] += offset
+            # visszakötés
             reordered_graph.add_edge(param_root, node_id)
-            if i < len(reordered_param_nodes) - 1 and comma_idx < len(comma_nodes):
-                reordered_graph.add_edge(param_root, comma_nodes[comma_idx])
-                comma_idx += 1
+
+            # vessző visszakötése ha kell
+            if i < len(reordered_param_nodes) - 1 and i < len(comma_nodes):
+                comma_id = comma_nodes[i]
+                reordered_graph.nodes[comma_id]["start"] = new_commas[i]
+                reordered_graph.add_edge(param_root, comma_id)
 
         print("Reordering complete.")
         return reordered_graph
