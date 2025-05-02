@@ -1,0 +1,506 @@
+{
+  "nodes": [
+    {
+      "id": 4010,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7409,
+      "value": null,
+      "nodeId": 4010,
+      "class_": "AssignmentOrMethodCallStatementContext"
+    },
+    {
+      "id": 4011,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7385,
+      "value": null,
+      "nodeId": 4011,
+      "class_": "LvalueContext"
+    },
+    {
+      "id": 4012,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7377,
+      "value": null,
+      "nodeId": 4012,
+      "class_": "LvalueContext"
+    },
+    {
+      "id": 4013,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7368,
+      "value": null,
+      "nodeId": 4013,
+      "class_": "LvalueContext"
+    },
+    {
+      "id": 4014,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7368,
+      "value": null,
+      "nodeId": 4014,
+      "class_": "PrefixedNonTypeNameContext"
+    },
+    {
+      "id": 4015,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7368,
+      "value": null,
+      "nodeId": 4015,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4016,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7368,
+      "value": null,
+      "nodeId": 4016,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4017,
+      "label": "syn",
+      "line": 519,
+      "start": 7366,
+      "end": 7368,
+      "value": "hdr",
+      "nodeId": 4017,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4018,
+      "label": "syn",
+      "line": 519,
+      "start": 7369,
+      "end": 7369,
+      "value": ".",
+      "nodeId": 4018,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4019,
+      "label": "syn",
+      "line": 519,
+      "start": 7370,
+      "end": 7377,
+      "value": null,
+      "nodeId": 4019,
+      "class_": "NameContext"
+    },
+    {
+      "id": 4020,
+      "label": "syn",
+      "line": 519,
+      "start": 7370,
+      "end": 7377,
+      "value": null,
+      "nodeId": 4020,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4021,
+      "label": "syn",
+      "line": 519,
+      "start": 7370,
+      "end": 7377,
+      "value": null,
+      "nodeId": 4021,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4022,
+      "label": "syn",
+      "line": 519,
+      "start": 7370,
+      "end": 7377,
+      "value": "ethernet",
+      "nodeId": 4022,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4023,
+      "label": "syn",
+      "line": 519,
+      "start": 7378,
+      "end": 7378,
+      "value": ".",
+      "nodeId": 4023,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4024,
+      "label": "syn",
+      "line": 519,
+      "start": 7379,
+      "end": 7385,
+      "value": null,
+      "nodeId": 4024,
+      "class_": "NameContext"
+    },
+    {
+      "id": 4025,
+      "label": "syn",
+      "line": 519,
+      "start": 7379,
+      "end": 7385,
+      "value": null,
+      "nodeId": 4025,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4026,
+      "label": "syn",
+      "line": 519,
+      "start": 7379,
+      "end": 7385,
+      "value": null,
+      "nodeId": 4026,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4027,
+      "label": "syn",
+      "line": 519,
+      "start": 7379,
+      "end": 7385,
+      "value": "srcAddr",
+      "nodeId": 4027,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4028,
+      "label": "syn",
+      "line": 519,
+      "start": 7387,
+      "end": 7387,
+      "value": "=",
+      "nodeId": 4028,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4029,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7408,
+      "value": null,
+      "nodeId": 4029,
+      "class_": "ExpressionContext"
+    },
+    {
+      "id": 4030,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7400,
+      "value": null,
+      "nodeId": 4030,
+      "class_": "ExpressionContext"
+    },
+    {
+      "id": 4031,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7391,
+      "value": null,
+      "nodeId": 4031,
+      "class_": "ExpressionContext"
+    },
+    {
+      "id": 4032,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7391,
+      "value": null,
+      "nodeId": 4032,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4033,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7391,
+      "value": null,
+      "nodeId": 4033,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4034,
+      "label": "syn",
+      "line": 519,
+      "start": 7389,
+      "end": 7391,
+      "value": "hdr",
+      "nodeId": 4034,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4035,
+      "label": "syn",
+      "line": 519,
+      "start": 7392,
+      "end": 7392,
+      "value": ".",
+      "nodeId": 4035,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4036,
+      "label": "syn",
+      "line": 519,
+      "start": 7393,
+      "end": 7400,
+      "value": null,
+      "nodeId": 4036,
+      "class_": "NameContext"
+    },
+    {
+      "id": 4037,
+      "label": "syn",
+      "line": 519,
+      "start": 7393,
+      "end": 7400,
+      "value": null,
+      "nodeId": 4037,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4038,
+      "label": "syn",
+      "line": 519,
+      "start": 7393,
+      "end": 7400,
+      "value": null,
+      "nodeId": 4038,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4039,
+      "label": "syn",
+      "line": 519,
+      "start": 7393,
+      "end": 7400,
+      "value": "ethernet",
+      "nodeId": 4039,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4040,
+      "label": "syn",
+      "line": 519,
+      "start": 7401,
+      "end": 7401,
+      "value": ".",
+      "nodeId": 4040,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4041,
+      "label": "syn",
+      "line": 519,
+      "start": 7402,
+      "end": 7408,
+      "value": null,
+      "nodeId": 4041,
+      "class_": "NameContext"
+    },
+    {
+      "id": 4042,
+      "label": "syn",
+      "line": 519,
+      "start": 7402,
+      "end": 7408,
+      "value": null,
+      "nodeId": 4042,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 4043,
+      "label": "syn",
+      "line": 519,
+      "start": 7402,
+      "end": 7408,
+      "value": null,
+      "nodeId": 4043,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 4044,
+      "label": "syn",
+      "line": 519,
+      "start": 7402,
+      "end": 7408,
+      "value": "dstAddr",
+      "nodeId": 4044,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 4045,
+      "label": "syn",
+      "line": 519,
+      "start": 7409,
+      "end": 7409,
+      "value": ";",
+      "nodeId": 4045,
+      "class_": "TerminalNodeImpl"
+    }
+  ],
+  "edges": [
+    {
+      "source": 4010,
+      "target": 4011
+    },
+    {
+      "source": 4010,
+      "target": 4028
+    },
+    {
+      "source": 4010,
+      "target": 4029
+    },
+    {
+      "source": 4010,
+      "target": 4045
+    },
+    {
+      "source": 4011,
+      "target": 4012
+    },
+    {
+      "source": 4011,
+      "target": 4023
+    },
+    {
+      "source": 4011,
+      "target": 4024
+    },
+    {
+      "source": 4012,
+      "target": 4013
+    },
+    {
+      "source": 4012,
+      "target": 4018
+    },
+    {
+      "source": 4012,
+      "target": 4019
+    },
+    {
+      "source": 4013,
+      "target": 4014
+    },
+    {
+      "source": 4014,
+      "target": 4015
+    },
+    {
+      "source": 4015,
+      "target": 4016
+    },
+    {
+      "source": 4016,
+      "target": 4017
+    },
+    {
+      "source": 4019,
+      "target": 4020
+    },
+    {
+      "source": 4020,
+      "target": 4021
+    },
+    {
+      "source": 4021,
+      "target": 4022
+    },
+    {
+      "source": 4024,
+      "target": 4025
+    },
+    {
+      "source": 4025,
+      "target": 4026
+    },
+    {
+      "source": 4026,
+      "target": 4027
+    },
+    {
+      "source": 4029,
+      "target": 4030
+    },
+    {
+      "source": 4029,
+      "target": 4040
+    },
+    {
+      "source": 4029,
+      "target": 4041
+    },
+    {
+      "source": 4030,
+      "target": 4031
+    },
+    {
+      "source": 4030,
+      "target": 4035
+    },
+    {
+      "source": 4030,
+      "target": 4036
+    },
+    {
+      "source": 4031,
+      "target": 4032
+    },
+    {
+      "source": 4032,
+      "target": 4033
+    },
+    {
+      "source": 4033,
+      "target": 4034
+    },
+    {
+      "source": 4036,
+      "target": 4037
+    },
+    {
+      "source": 4037,
+      "target": 4038
+    },
+    {
+      "source": 4038,
+      "target": 4039
+    },
+    {
+      "source": 4041,
+      "target": 4042
+    },
+    {
+      "source": 4042,
+      "target": 4043
+    },
+    {
+      "source": 4043,
+      "target": 4044
+    }
+  ]
+}
