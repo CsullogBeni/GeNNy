@@ -147,8 +147,7 @@ class VariableRenamerGNN:
         print(f"\nRenamed {count} predicted occurrences of '{old_name}' to '{new_name}'")
         return renamed_graph
 
-    @staticmethod
-    def compare_graphs(original, modified):
+    def compare_graphs(self, original, modified):
         """
         Compares two graphs and prints the differences in node values.
 
