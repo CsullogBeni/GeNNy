@@ -87,7 +87,8 @@ def create_node_features(nodes: List[Dict], label_else_ids: List[int]) -> (torch
             y.append(-1)
             mask.append(False)
 
-    return torch.tensor(x, dtype=torch.long), torch.tensor(y, dtype=torch.long), torch.tensor(mask, dtype=torch.bool), target_node_ids
+    return torch.tensor(x, dtype=torch.long), torch.tensor(y, dtype=torch.long), torch.tensor(mask,
+                                                                                              dtype=torch.bool), target_node_ids
 
 
 def build_data(ast_path: Path) -> Data:
@@ -152,10 +153,13 @@ def predict(model, dataset):
             out = model(data)
             probs = F.softmax(out, dim=1)
             pred = out.argmax(dim=1)
-            for i, node_id in enumerate(data.target_node_ids):
-                label = pred[node_id].item()
-                confidence = probs[node_id][label].item()
-                print(f"{data.file_name}: else node {node_id} => predicted: {label} ({'empty' if label == 1 else 'non-empty'}, confidence={confidence:.2f})")
+            for i, is_target in enumerate(data.train_mask):
+                if is_target:
+                    label = pred[i].item()
+                    confidence = probs[i][label].item()
+                    node_id = data.x[i].tolist()  # nem a nodeId, hanem jellemző; ha kell, tároljuk külön!
+                    print(
+                        f"{data.file_name}: else node idx {i} => predicted: {label} ({'empty' if label == 1 else 'non-empty'}, confidence={confidence:.2f})")
 
 
 if __name__ == "__main__":
@@ -169,7 +173,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.CrossEntropyLoss()
 
-    for epoch in range(100):
+    for epoch in range(200):
         loss = train(model, loader, optimizer, criterion)
         acc = evaluate(model, loader)
         print(f"Epoch {epoch:02d}, Loss: {loss:.4f}, Accuracy: {acc:.4f}")
