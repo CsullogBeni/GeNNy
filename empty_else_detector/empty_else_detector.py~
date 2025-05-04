@@ -2,8 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, List
 import torch
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
+
 from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 import torch.nn.functional as F
