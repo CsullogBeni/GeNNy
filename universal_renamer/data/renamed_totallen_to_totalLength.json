@@ -23475,7 +23475,7 @@
       "line": 561,
       "start": 8245,
       "end": 8252,
-      "value": "totalLen",
+      "value": "totallLenght",
       "nodeId": 4516,
       "class_": "TerminalNodeImpl"
     },
@@ -27227,7 +27227,7 @@
       "line": 448,
       "start": 6004,
       "end": 6012,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3321,
       "class_": "TerminalNodeImpl"
     },
@@ -30116,7 +30116,7 @@
       "line": 455,
       "start": 6114,
       "end": 6121,
-      "value": "totalLen",
+      "value": "totallLenght",
       "nodeId": 3398,
       "class_": "TerminalNodeImpl"
     },
@@ -40474,7 +40474,7 @@
       "line": 488,
       "start": 6752,
       "end": 6760,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3711,
       "class_": "TerminalNodeImpl"
     },

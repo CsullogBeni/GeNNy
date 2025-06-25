@@ -25377,7 +25377,7 @@
       "line": 564,
       "start": 8347,
       "end": 8356,
-      "value": "fragOffset",
+      "value": "ipv4FragOffset",
       "nodeId": 4567,
       "class_": "TerminalNodeImpl"
     },
@@ -27227,7 +27227,7 @@
       "line": 448,
       "start": 6004,
       "end": 6012,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3321,
       "class_": "TerminalNodeImpl"
     },
@@ -31594,7 +31594,7 @@
       "line": 458,
       "start": 6189,
       "end": 6198,
-      "value": "fragOffset",
+      "value": "ipv4FragOffset",
       "nodeId": 3437,
       "class_": "TerminalNodeImpl"
     },
@@ -40474,7 +40474,7 @@
       "line": 488,
       "start": 6752,
       "end": 6760,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3711,
       "class_": "TerminalNodeImpl"
     },

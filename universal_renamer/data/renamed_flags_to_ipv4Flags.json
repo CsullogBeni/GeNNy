@@ -24747,7 +24747,7 @@
       "line": 563,
       "start": 8317,
       "end": 8321,
-      "value": "flags",
+      "value": "ipv4Flags",
       "nodeId": 4550,
       "class_": "TerminalNodeImpl"
     },
@@ -27227,7 +27227,7 @@
       "line": 448,
       "start": 6004,
       "end": 6012,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3321,
       "class_": "TerminalNodeImpl"
     },
@@ -31110,7 +31110,7 @@
       "line": 457,
       "start": 6168,
       "end": 6172,
-      "value": "flags",
+      "value": "ipv4Flags",
       "nodeId": 3424,
       "class_": "TerminalNodeImpl"
     },
@@ -40474,7 +40474,7 @@
       "line": 488,
       "start": 6752,
       "end": 6760,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3711,
       "class_": "TerminalNodeImpl"
     },

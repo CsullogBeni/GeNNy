@@ -7616,7 +7616,7 @@
       "line": 521,
       "start": 7468,
       "end": 7470,
-      "value": "ttl",
+      "value": "ipv4Ttl",
       "nodeId": 4091,
       "class_": "TerminalNodeImpl"
     },
@@ -8297,7 +8297,7 @@
       "line": 521,
       "start": 7483,
       "end": 7485,
-      "value": "ttl",
+      "value": "ipv4Ttl",
       "nodeId": 4109,
       "class_": "TerminalNodeImpl"
     },
@@ -26020,7 +26020,7 @@
       "line": 565,
       "start": 8382,
       "end": 8384,
-      "value": "ttl",
+      "value": "ipv4Ttl",
       "nodeId": 4584,
       "class_": "TerminalNodeImpl"
     },
@@ -27227,7 +27227,7 @@
       "line": 448,
       "start": 6004,
       "end": 6012,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3321,
       "class_": "TerminalNodeImpl"
     },
@@ -32098,7 +32098,7 @@
       "line": 459,
       "start": 6215,
       "end": 6217,
-      "value": "ttl",
+      "value": "ipv4Ttl",
       "nodeId": 3450,
       "class_": "TerminalNodeImpl"
     },
@@ -40474,7 +40474,7 @@
       "line": 488,
       "start": 6752,
       "end": 6760,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3711,
       "class_": "TerminalNodeImpl"
     },

@@ -22837,7 +22837,7 @@
       "line": 560,
       "start": 8212,
       "end": 8219,
-      "value": "diffserv",
+      "value": "differentServer",
       "nodeId": 4499,
       "class_": "TerminalNodeImpl"
     },
@@ -27227,7 +27227,7 @@
       "line": 448,
       "start": 6004,
       "end": 6012,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3321,
       "class_": "TerminalNodeImpl"
     },
@@ -29613,7 +29613,7 @@
       "line": 454,
       "start": 6090,
       "end": 6097,
-      "value": "diffserv",
+      "value": "differentServer",
       "nodeId": 3385,
       "class_": "TerminalNodeImpl"
     },
@@ -40474,7 +40474,7 @@
       "line": 488,
       "start": 6752,
       "end": 6760,
-      "value": "ethernetType",
+      "value": "etherType",
       "nodeId": 3711,
       "class_": "TerminalNodeImpl"
     },
