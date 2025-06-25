@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 empty_else_finder.py  –  Üres else ágak keresése P4 AST‑ben
 Használat:
@@ -78,7 +77,7 @@ def find_empty_else_blocks(ast: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
-    json_path = Path(r"data/ex1_normalized.json")
+    # json_path = Path(r"data/renamed_version_to_ipv4Version.json")
     json_path = Path(r"data/basic_p4_v2_normalized.json")
     ast = load_ast(json_path)
     empties = find_empty_else_blocks(ast)

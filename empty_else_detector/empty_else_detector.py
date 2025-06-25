@@ -271,11 +271,16 @@ class EmptyElseDetector:
 
 
 if __name__ == "__main__":
-    detector = EmptyElseDetector(data_dir="data", epochs=300, lr=0.01)
+    detector = EmptyElseDetector(data_dir="data", epochs=400, lr=0.01)
     if Path("model.pt").exists():
         detector.load_model("model.pt")
     else:
         detector.train()
         detector.save_model("model.pt")
 
+    detector.predict()
+
+    # distinct graphs
+    detector = EmptyElseDetector(data_dir="test_files")
+    detector.load_model("model.pt")
     detector.predict()
