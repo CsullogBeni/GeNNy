@@ -1,4 +1,6 @@
+import os
 import json
+import glob
 import networkx as nx
 import torch
 import torch.nn as nn
@@ -6,29 +8,12 @@ import torch.optim as optim
 
 
 class ParamOrderModel:
-    """
-    This class trains a neural network model to learn the correct ordering of function parameters
-    by comparing the original and reordered graphs of source code.
-
-    It uses node embeddings and a feedforward network to predict the position of each parameter,
-    and then reconstructs the reordered graph accordingly.
-    """
-
-    def __init__(self, original_path, reordered_path, embedding_dim=64, lr=0.001, epochs=15):
-        self.original_data = self.load_json(original_path)
-        self.reordered_data = self.load_json(reordered_path)
-        self.graph_original = self.build_graph(self.original_data)
-        self.graph_reordered = self.build_graph(self.reordered_data)
+    def __init__(self, data_dir, embedding_dim=64, lr=0.001, epochs=15):
+        self.data_dir = data_dir
         self.embedding_dim = embedding_dim
         self.epochs = epochs
 
-        self.node_id_to_index = {node_id: idx for idx, node_id in enumerate(self.graph_original.nodes)}
-        self.index_to_node_id = {idx: node_id for node_id, idx in self.node_id_to_index.items()}
-
-        self.param_nodes_orig = self.get_ordered_parameters(self.graph_original)
-        self.param_nodes_reord = self.get_ordered_parameters(self.graph_reordered)
-
-        self.node_embedding = nn.Embedding(len(self.node_id_to_index), embedding_dim)
+        self.node_embedding = nn.Embedding(10_000, embedding_dim)  # nagy elemszám, padding miatt
         self.model = self.OrderPredictionModel(embedding_dim)
         self.optimizer = optim.Adam(
             list(self.model.parameters()) + list(self.node_embedding.parameters()), lr=lr
@@ -36,11 +21,6 @@ class ParamOrderModel:
         self.loss_fn = nn.MSELoss()
 
     class OrderPredictionModel(nn.Module):
-        """
-        A simple feedforward neural network that predicts the target position of a parameter
-        based on its embedding.
-        """
-
         def __init__(self, embedding_dim):
             super().__init__()
             self.fc = nn.Sequential(
@@ -48,37 +28,19 @@ class ParamOrderModel:
                 nn.ReLU(),
                 nn.Linear(128, 64),
                 nn.ReLU(),
-                nn.Linear(64, 1)  # predicted position
+                nn.Linear(64, 1)
             )
 
         def forward(self, x):
-            return self.fc(x).squeeze(-1)  # [num_params]
+            return self.fc(x).squeeze(-1)
 
     @staticmethod
     def load_json(path):
-        """
-        Loads a JSON file from the given path.
-
-        Args:
-            path (str): File path.
-
-        Returns:
-            dict: Parsed JSON content.
-        """
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
     @staticmethod
     def build_graph(data):
-        """
-        Constructs a NetworkX directed graph from the given JSON data.
-
-        Args:
-            data (dict): Graph data.
-
-        Returns:
-            nx.DiGraph: Constructed graph.
-        """
         G = nx.DiGraph()
         for node in data['nodes']:
             node_id = node['nodeId']
@@ -90,15 +52,6 @@ class ParamOrderModel:
 
     @staticmethod
     def get_ordered_parameters(graph):
-        """
-        Extracts the list of parameter node IDs in their syntactic order.
-
-        Args:
-            graph (nx.DiGraph): Graph to process.
-
-        Returns:
-            List[int]: Ordered parameter node IDs.
-        """
         params = []
         for node_id, data in graph.nodes(data=True):
             if data.get("class_") == "ParameterContext":
@@ -107,16 +60,6 @@ class ParamOrderModel:
 
     @staticmethod
     def get_param_signature(graph, node_id):
-        """
-        Retrieves the (type, name) signature of a parameter node.
-
-        Args:
-            graph (nx.DiGraph): The graph containing the node.
-            node_id (int): The ID of the parameter node.
-
-        Returns:
-            Tuple[str, str]: (type, name) of the parameter.
-        """
         children = list(graph.successors(node_id))
         typename = name = None
         for child in children:
@@ -133,19 +76,10 @@ class ParamOrderModel:
                         name = sub_data.get("value")
         return typename, name
 
-    def get_target_permutation(self):
-        """
-        Determines the correct target order of the parameters by matching signatures.
-
-        Returns:
-            torch.Tensor: Target positions of parameters.
-
-        Raises:
-            ValueError: If a parameter in the original graph cannot be matched.
-        """
-        reord_sigs = [self.get_param_signature(self.graph_reordered, nid) for nid in self.param_nodes_reord]
-        orig_sigs = [self.get_param_signature(self.graph_original, nid) for nid in self.param_nodes_orig]
-
+    @staticmethod
+    def get_target_permutation(graph_original, graph_reordered, param_nodes_orig, param_nodes_reord):
+        reord_sigs = [ParamOrderModel.get_param_signature(graph_reordered, nid) for nid in param_nodes_reord]
+        orig_sigs = [ParamOrderModel.get_param_signature(graph_original, nid) for nid in param_nodes_orig]
         positions = []
         for sig in orig_sigs:
             try:
@@ -155,48 +89,76 @@ class ParamOrderModel:
                 raise ValueError(f"No match found for parameter signature: {sig}")
         return torch.tensor(positions, dtype=torch.float32)
 
+    def get_example_pairs(self):
+        files = glob.glob(os.path.join(self.data_dir, "*_generated.json"))
+        pairs = []
+        for f in files:
+            if "reordered" in f:
+                continue
+            base = f.replace("_generated.json", "")
+            reord = base + "_reordered_generated.json"
+            if os.path.exists(reord):
+                pairs.append((f, reord))
+        return pairs
+
     def train(self):
-        """
-        Trains the model to predict parameter order based on learned embeddings.
-        """
-        indices = torch.tensor([self.node_id_to_index[nid] for nid in self.param_nodes_orig], dtype=torch.long)
-        targets = self.get_target_permutation()
-
+        pairs = [("data/control_my_deparser.json", "data/control_my_deparser_reordered.json"),
+                 ("data/control_my_compute_checksum.json", "data/control_my_compute_checksum_reordered.json"),
+                 ("data/control_my_egress.json", "data/control_my_egress_reordered.json"),
+                 ("data/control_my_ingress.json", "data/control_my_ingress_reordered.json"),
+                 ("data/control_my_verify_checksum.json", "data/control_my_verify_checksum_reordered.json"),
+                 ]
         for epoch in range(self.epochs):
-            self.optimizer.zero_grad()
-            embeddings = self.node_embedding(indices)
-            outputs = self.model(embeddings)
-            loss = self.loss_fn(outputs, targets)
-            loss.backward()
-            self.optimizer.step()
-            print(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
+            total_loss = 0.0
+            for orig_path, reord_path in pairs:
+                graph_original = self.build_graph(self.load_json(orig_path))
+                graph_reordered = self.build_graph(self.load_json(reord_path))
 
-    def infer_permutation(self):
-        """
-        Predicts the parameter order by scoring and sorting.
+                node_id_to_index = {nid: idx for idx, nid in enumerate(graph_original.nodes)}
+                param_nodes_orig = self.get_ordered_parameters(graph_original)
+                param_nodes_reord = self.get_ordered_parameters(graph_reordered)
 
-        Returns:
-            List[int]: Sorted indices representing the new order.
-        """
-        indices = torch.tensor([self.node_id_to_index[nid] for nid in self.param_nodes_orig], dtype=torch.long)
+                if not param_nodes_orig or not param_nodes_reord:
+                    continue  # skip bad examples
+
+                indices = torch.tensor([node_id_to_index[nid] for nid in param_nodes_orig], dtype=torch.long)
+                targets = self.get_target_permutation(graph_original, graph_reordered, param_nodes_orig,
+                                                      param_nodes_reord)
+
+                self.optimizer.zero_grad()
+                embeddings = self.node_embedding(indices)
+                outputs = self.model(embeddings)
+                loss = self.loss_fn(outputs, targets)
+                loss.backward()
+                self.optimizer.step()
+
+                total_loss += loss.item()
+
+            print(f"Epoch {epoch + 1}, Total Loss: {total_loss:.4f}")
+
+    def infer_permutation(self, graph_original, param_nodes_orig):
+        node_id_to_index = {nid: idx for idx, nid in enumerate(graph_original.nodes)}
+        indices = torch.tensor([node_id_to_index[nid] for nid in param_nodes_orig], dtype=torch.long)
         embeddings = self.node_embedding(indices)
         scores = self.model(embeddings)
         sorted_indices = torch.argsort(scores).tolist()
+
+        print("Parameter prediction scores:")
+        for nid, score in zip(param_nodes_orig, scores.tolist()):
+            typename, name = self.get_param_signature(graph_original, nid)
+            print(f"  Param: ({typename} {name}) -> score: {score:.4f}")
+
+        sorted_indices = torch.argsort(scores).tolist()
+        print("  Predicted sorted indices (new order):", sorted_indices)
+
         return sorted_indices
 
-    def process(self):
-        """
-        Trains the model, infers new parameter order, and reconstructs a reordered graph.
+    def process_single_example(self, json_path):
+        graph_original = self.build_graph(self.load_json(json_path))
+        param_nodes_orig = self.get_ordered_parameters(graph_original)
+        predicted_order = self.infer_permutation(graph_original, param_nodes_orig)
 
-        Returns:
-            nx.DiGraph: New graph with predicted parameter ordering.
-        """
-        self.train()
-        predicted_order = self.infer_permutation()
-        print(f"Predicted permutation: {predicted_order}")
-
-        reordered_graph = self.graph_original.copy()
-        param_nodes_orig = self.get_ordered_parameters(reordered_graph)
+        reordered_graph = graph_original.copy()
         reordered_param_nodes = [param_nodes_orig[i] for i in predicted_order]
 
         param_root = None
@@ -205,7 +167,7 @@ class ParamOrderModel:
                 param_root = node_id
                 break
         if param_root is None:
-            raise ValueError("ParameterListContext not found in the graph.")
+            raise ValueError("ParameterListContext not found.")
 
         for child in list(reordered_graph.successors(param_root)):
             reordered_graph.remove_edge(param_root, child)
@@ -237,24 +199,42 @@ class ParamOrderModel:
                                          label="syn", line=0, end=new_commas[i], nodeId=comma_id)
                 reordered_graph.add_edge(param_root, comma_id)
 
-        print("Reordering complete.")
         return reordered_graph
 
 
 if __name__ == "__main__":
     from pretty_printer.pretty_printer import PrettyPrinter
 
-    model = ParamOrderModel("data/control_generated.json", "data/control_reordered_generated.json", epochs=50)
-    new_graph = model.process()
+    model = ParamOrderModel(data_dir="data", epochs=100)
+    model.train()
 
-    print("Original graph:")
-    pp = PrettyPrinter(model.graph_original)
+    # Test
+    test_graph = model.process_single_example("data/control_my_deparser.json")
+
+    print("Predicted reordered script:")
+    pp = PrettyPrinter(test_graph)
     print(pp.get_script)
 
-    print("Reordered graph (expected):")
-    pp = PrettyPrinter(model.graph_reordered)
+    test_graph = model.process_single_example("data/control_my_compute_checksum.json")
+
+    print("Predicted reordered script:")
+    pp = PrettyPrinter(test_graph)
     print(pp.get_script)
 
-    print("Reordered graph (actual):")
-    pp = PrettyPrinter(new_graph)
+    test_graph = model.process_single_example("data/control_my_egress.json")
+
+    print("Predicted reordered script:")
+    pp = PrettyPrinter(test_graph)
+    print(pp.get_script)
+
+    test_graph = model.process_single_example("data/control_my_ingress.json")
+
+    print("Predicted reordered script:")
+    pp = PrettyPrinter(test_graph)
+    print(pp.get_script)
+
+    test_graph = model.process_single_example("data/control_my_verify_checksum.json")
+
+    print("Predicted reordered script:")
+    pp = PrettyPrinter(test_graph)
     print(pp.get_script)
