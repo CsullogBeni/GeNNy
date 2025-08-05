@@ -15,7 +15,7 @@ class PrettyPrinter:
         node_value = self._graph.nodes[node]['value']
         if node_value is not None:
             try:
-                if node_value in [';', '{']:
+                if ';' in node_value or '{' in node_value:
                     self._script += node_value + '\n'
                 elif self._script[-1] == '.' or self._script[-1] == ' ' or node_value == '.':
                     self._script += node_value
