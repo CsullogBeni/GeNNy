@@ -102,7 +102,6 @@ class AbstractGraphLearner(nn.Module, ABC):
         classes_list = classes.tolist() if hasattr(classes, "tolist") else list(classes)
         if unk_token not in classes_list:
             encoder.classes_ = np.array(classes_list + [unk_token], dtype=object)
-            print(f"[enc] injected UNK token '{unk_token}' → vocab size = {len(encoder.classes_)}")
 
     def _safe_transform(self, encoder: LabelEncoder, values: List[str], unk_token: str):
         """
@@ -134,7 +133,6 @@ class AbstractGraphLearner(nn.Module, ABC):
         Notes:
             - Guarantees sentinel tokens are present:
               class → `<UNK_CLASS>`, value → `<PAD>`, `<NONE>`, `<UNK_VALUE>`.
-            - Prints vocabulary sizes after fitting.
         """
         class_values, value_values = [], []
 
@@ -156,9 +154,6 @@ class AbstractGraphLearner(nn.Module, ABC):
 
         self.class_encoder.fit(class_values)
         self.value_encoder.fit(value_values)
-
-        print(f"[enc] class_vocab={len(getattr(self.class_encoder, 'classes_', []))} "
-              f"value_vocab={len(getattr(self.value_encoder, 'classes_', []))}")
 
     def _encode_node_features(self, node_attrs: List[Dict]) -> torch.Tensor:
         """
@@ -200,8 +195,6 @@ class AbstractGraphLearner(nn.Module, ABC):
         class_embed = self.class_autoencoder(class_ids)
         value_embed = self.value_autoencoder(value_ids)
         x = torch.cat([class_embed, value_embed], dim=1)
-
-        print(f"[encode] nodes={len(node_attrs)} → x.shape={tuple(x.shape)}")
         return x
 
     # -----------------------------------------------------------
@@ -234,8 +227,6 @@ class AbstractGraphLearner(nn.Module, ABC):
             dst = edge.get("target")
             if src is not None and dst is not None and src in g and dst in g:
                 g.add_edge(src, dst)
-
-        print(f"[io] loaded '{filepath}': |V|={g.number_of_nodes()} |E|={g.number_of_edges()}")
         return g
 
     def _graph_to_pyg(self, graph: nx.DiGraph) -> Data:
@@ -277,8 +268,6 @@ class AbstractGraphLearner(nn.Module, ABC):
         data = Data(x=x, edge_index=edge_index)
         data._raw_node_attrs = node_attrs
         data._node_ids = node_ids
-
-        print(f"[to_pyg] |V|={len(node_ids)} |E|={edge_index.shape[1]} (after sym+loops)")
         return data
 
     # -----------------------------------------------------------
