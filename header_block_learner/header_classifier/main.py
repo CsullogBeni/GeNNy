@@ -18,7 +18,7 @@ This module provides a simple CLI-style workflow with two modes:
        • Encodes with each model's own encoders.
        • Applies thresholds and type filters
          (`HeaderTypeDeclarationContext` and `StructFieldContext`).
-       • Prints readable summaries and top‑k diagnostics.
+       • Prints readable summaries and top-k diagnostics.
 
 Input JSON format (per graph):
 {
@@ -75,10 +75,32 @@ THRESHOLD_FIELD = 0.65
 
 # --------- utilities ---------
 def detect_device() -> str:
+    """
+    Detect the best available computation device.
+
+    Returns:
+        str: "cuda" if a CUDA-capable GPU is available via PyTorch,
+             otherwise "cpu".
+    """
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def _graph_dict_to_nx(gdict: dict) -> nx.DiGraph:
+    """
+    Convert a JSON-like graph dictionary to a NetworkX directed graph.
+
+    The input is expected to contain:
+      - "nodes": a list of node dicts with at least an "id" key
+                 (optionally including "class_", "value", etc.).
+      - "edges": a list of edge dicts with "source" and "target" keys.
+
+    Args:
+        gdict (dict): Parsed JSON object representing a single graph.
+
+    Returns:
+        nx.DiGraph: The constructed directed graph with node attributes
+        preserved from the input dictionaries.
+    """
     G = nx.DiGraph()
     for node in gdict.get("nodes", []):
         G.add_node(node["id"], **node)
@@ -90,6 +112,23 @@ def _graph_dict_to_nx(gdict: dict) -> nx.DiGraph:
 
 
 def load_graphs_any(path: str) -> list[tuple[str, nx.DiGraph]]:
+    """
+    Load one or more graphs from a file or a directory.
+
+    Supported file payloads:
+      1) A single graph object with "nodes"/"edges".
+      2) An object with a "graphs" list, each an individual graph dict.
+      3) A top-level JSON list of graph dicts.
+
+    If `path` is a directory, all `*.json` files inside it are scanned.
+
+    Args:
+        path (str): Path to a JSON file or a directory containing JSON files.
+
+    Returns:
+        list[tuple[str, nx.DiGraph]]: A list of (name, graph) tuples where
+        `name` is a stable identifier derived from the filename and index.
+    """
     items: list[tuple[str, nx.DiGraph]] = []
     if os.path.isdir(path):
         for fname in sorted(os.listdir(path)):
@@ -119,6 +158,19 @@ def load_graphs_any(path: str) -> list[tuple[str, nx.DiGraph]]:
 
 
 def print_predictions(title: str, indices: list[int], graph: nx.DiGraph, threshold: float) -> None:
+    """
+    Pretty-print a preview of predicted node matches for a graph.
+
+    Args:
+        title (str): Heading to print above the results.
+        indices (list[int]): Indices (into the node list ordering) that
+            surpassed the relevant threshold.
+        graph (nx.DiGraph): The source graph.
+        threshold (float): The probability cutoff used for the predictions.
+
+    Returns:
+        None: This function prints to stdout for human inspection.
+    """
     node_ids = list(graph.nodes)
     print(f"\n{title} | matches: {len(indices)}  (threshold: {threshold})")
     preview_max = 20
@@ -136,6 +188,19 @@ def print_predictions(title: str, indices: list[int], graph: nx.DiGraph, thresho
 
 
 def _topk_debug(scores: torch.Tensor, graph: nx.DiGraph, k: int = 10):
+    """
+    Extract top-k node scores for quick debugging.
+
+    Args:
+        scores (torch.Tensor): Per-node scores (1D tensor).
+        graph (nx.DiGraph): The corresponding graph whose nodes align with
+            the `scores` ordering.
+        k (int, optional): Maximum number of entries to return. Defaults to 10.
+
+    Returns:
+        list[tuple[int, float, int, str | None, str | None]]:
+            A list of tuples (rank, score, node_id, class_, value).
+    """
     if scores.numel() == 0:
         return []
     vals, idxs = torch.topk(scores, k=min(k, scores.numel()))
@@ -150,6 +215,17 @@ def _topk_debug(scores: torch.Tensor, graph: nx.DiGraph, k: int = 10):
 
 
 def _print_node_score(graph: nx.DiGraph, node_id: int, scores: torch.Tensor) -> None:
+    """
+    Print the model score for a specific node ID, if present in the graph.
+
+    Args:
+        graph (nx.DiGraph): Source graph.
+        node_id (int): Node identifier to probe.
+        scores (torch.Tensor): Per-node scores aligned to the graph's node list.
+
+    Returns:
+        None: Prints a single-line diagnostic (or a 'not found' notice).
+    """
     node_ids = list(graph.nodes)
     try:
         idx = node_ids.index(node_id)
@@ -162,6 +238,27 @@ def _print_node_score(graph: nx.DiGraph, node_id: int, scores: torch.Tensor) -> 
 # --------- prediction ---------
 @torch.no_grad()
 def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str) -> None:
+    """
+    Classify header blocks and fields for a single graph and print diagnostics.
+
+    Steps:
+      1) Load both trained models from `model_dir`.
+      2) Build model-specific PyG inputs.
+      3) Predict header blocks, filter to `HeaderTypeDeclarationContext`, and
+         print matches and top-k candidates.
+      4) Predict header fields within the predicted header subtrees, filter to
+         `StructFieldContext`, and print matches and top-k candidates.
+
+    Args:
+        graph (nx.DiGraph): The input AST graph.
+        name (str): A label used in the console output.
+        model_dir (str): Directory containing the saved model weights and
+            encoders for both classifiers.
+        device (str): "cpu" or "cuda".
+
+    Returns:
+        None: Outputs are printed for human inspection.
+    """
     print(f"\nGraph: {name}")
 
     # Load models
@@ -238,7 +335,7 @@ def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str) ->
     _print_node_score(graph, 3283, scores_field)
 
     if not field_hits:
-        # top‑10 within candidates, ONLY StructFieldContext
+        # top-10 within candidates, ONLY StructFieldContext
         pairs = [(i, float(scores_field[i])) for i in cand_idx
                  if graph.nodes[node_ids[i]].get("class_") == "StructFieldContext"]
         pairs.sort(key=lambda t: t[1], reverse=True)
@@ -251,6 +348,17 @@ def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str) ->
 
 
 def run_predictions(path: str, model_dir: str, device: str) -> None:
+    """
+    Load graphs from `path` and run classification for each graph.
+
+    Args:
+        path (str): File or directory pointing to validation data.
+        model_dir (str): Directory containing saved models/encoders.
+        device (str): "cpu" or "cuda".
+
+    Returns:
+        None: Progress and results are printed to stdout.
+    """
     graphs = load_graphs_any(path)
     if not graphs:
         print(f"No graphs found at: {path}")
@@ -262,6 +370,18 @@ def run_predictions(path: str, model_dir: str, device: str) -> None:
 
 # --------- main ---------
 def main() -> None:
+    """
+    Program entry point.
+
+    Behavior depends on `TRAIN_MODE`:
+      - If True, trains both models on data from `DATA_DIR` and saves to
+        `MODEL_DIR` for `EPOCHS` epochs.
+      - If False, loads models from `MODEL_DIR` and classifies graphs found at
+        `CLASSIFY_GRAPH_PATH`.
+
+    Returns:
+        None
+    """
     device = detect_device()
     print(f"Device: {device.upper()}")
 
