@@ -1,3 +1,57 @@
+"""
+Entry point for training and inference of header classifiers over AST graphs.
+
+This module provides a simple CLI-style workflow with two modes:
+
+1) **Training mode** (`TRAIN_MODE = True`)
+   - Collects JSON graphs from `DATA_DIR`.
+   - Trains and saves two GNN-based classifiers via
+     `train_headers.train_and_save_models`:
+       • `HeaderBlockClassifier` — predicts header *block* roots/contexts.
+       • `HeaderFieldClassifier` — predicts `StructFieldContext` nodes (fields)
+         inside header subtrees.
+
+2) **Inference/validation mode** (`TRAIN_MODE = False`)
+   - Loads both trained models from `MODEL_DIR`.
+   - Accepts a single JSON file or a directory (`CLASSIFY_GRAPH_PATH`).
+   - For each graph:
+       • Encodes with each model's own encoders.
+       • Applies thresholds and type filters
+         (`HeaderTypeDeclarationContext` and `StructFieldContext`).
+       • Prints readable summaries and top‑k diagnostics.
+
+Input JSON format (per graph):
+{
+  "nodes": [{"id": 1, "class_": "SomeContext", "value": null}, ...],
+  "edges": [{"source": 1, "target": 2}, ...]
+}
+
+Also supported: a file that contains `{ "graphs": [ ... ] }` or a JSON list of
+per-graph objects in the same shape as above.
+
+Configuration constants
+-----------------------
+- `TRAIN_MODE`: training vs. inference.
+- `CLASSIFY_GRAPH_PATH`: file or directory to classify when not training.
+- `DATA_DIR`: directory with training JSONs.
+- `MODEL_DIR`: where trained models are stored/loaded from.
+- `EPOCHS`: number of epochs for training.
+- `THRESHOLD_BLOCK`: probability threshold for header block detection.
+- `THRESHOLD_FIELD`: probability threshold for header field detection.
+
+Notes
+-----
+- Each classifier carries its own categorical encoders; graphs must be
+  converted separately for each model.
+- A couple of hard-coded node IDs (`3273`, `3283`) are used for targeted
+  debug prints; feel free to remove or change them.
+
+See also:
+- `train_headers.py` for the training orchestration.
+- `header_block_classifier.py` and `header_field_classifier.py` for model details.
+- `validate_headers.py` for rule-based diagnostics.
+"""
+
 # main.py
 
 import os
@@ -9,18 +63,17 @@ from train_headers import train_and_save_models
 from header_block_classifier import HeaderBlockClassifier
 from header_field_classifier import HeaderFieldClassifier
 
-# 🔧 KONFIGURÁCIÓ
+# 🔧 CONFIGURATION
 TRAIN_MODE = True
-CLASSIFY_GRAPH_PATH = "validation_data"  # lehet mappa vagy fájl
+CLASSIFY_GRAPH_PATH = "validation_data"  # can be a directory or a single file
 DATA_DIR = "data"
 MODEL_DIR = "models"
 EPOCHS = 60
-
 THRESHOLD_BLOCK = 0.95
-THRESHOLD_FIELD = 0.65  # rugalmasabb, a Field tipikusan alacsonyabb score-okat ad
+THRESHOLD_FIELD = 0.65
 
 
-# --------- utilok ---------
+# --------- utilities ---------
 def detect_device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -61,13 +114,13 @@ def load_graphs_any(path: str) -> list[tuple[str, nx.DiGraph]]:
             if isinstance(gd, dict) and "nodes" in gd:
                 items.append((name, _graph_dict_to_nx(gd)))
     else:
-        print(f"⚠️ Nem ismert graf formátum: {base}")
+        print(f"Unknown graph format: {base}")
     return items
 
 
-def print_predictions(title: str, indices: list[int], graph: nx.DiGraph, threshold: float):
+def print_predictions(title: str, indices: list[int], graph: nx.DiGraph, threshold: float) -> None:
     node_ids = list(graph.nodes)
-    print(f"\n{title} | találatok: {len(indices)}  (küszöb: {threshold})")
+    print(f"\n{title} | matches: {len(indices)}  (threshold: {threshold})")
     preview_max = 20
     for i, idx in enumerate(indices[:preview_max], start=1):
         nid = node_ids[idx] if 0 <= idx < len(node_ids) else f"<idx:{idx}>"
@@ -79,7 +132,7 @@ def print_predictions(title: str, indices: list[int], graph: nx.DiGraph, thresho
         else:
             print(f"  {i:>2}. idx={idx:<5} id={nid}  class_={klass}")
     if len(indices) > preview_max:
-        print(f"  ... és még {len(indices) - preview_max} további találat.")
+        print(f"  ... and {len(indices) - preview_max} more.")
 
 
 def _topk_debug(scores: torch.Tensor, graph: nx.DiGraph, k: int = 10):
@@ -96,33 +149,33 @@ def _topk_debug(scores: torch.Tensor, graph: nx.DiGraph, k: int = 10):
     return out
 
 
-def _print_node_score(graph: nx.DiGraph, node_id: int, scores: torch.Tensor):
+def _print_node_score(graph: nx.DiGraph, node_id: int, scores: torch.Tensor) -> None:
     node_ids = list(graph.nodes)
     try:
         idx = node_ids.index(node_id)
         sc = float(scores[idx])
-        print(f"   🔎 score[{node_id}] ({graph.nodes[node_id].get('class_')}): {sc:.4f}")
+        print(f"     score[{node_id}] ({graph.nodes[node_id].get('class_')}): {sc:.4f}")
     except ValueError:
-        print(f"   🔎 node {node_id} not found in this graph.")
+        print(f"     node {node_id} not found in this graph.")
 
 
-# --------- predikció ---------
+# --------- prediction ---------
 @torch.no_grad()
-def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str):
-    print(f"\n🔍 Gráf: {name}")
+def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str) -> None:
+    print(f"\nGraph: {name}")
 
-    # modellek betöltése
+    # Load models
     block_model = HeaderBlockClassifier(device=device)
     field_model = HeaderFieldClassifier(device=device)
     block_model.load_model(model_dir)
     field_model.load_model(model_dir)
 
-    # GT (szabály alapú) darabszámok – gyors ellenőrzéshez
+    # Quick GT counts (rule-based) for sanity checks
     gt_block = int(block_model._label_nodes(graph).sum().item())
     gt_field = int(field_model._label_nodes(graph).sum().item())
     print(f"   GT headers: {gt_block} | GT fields: {gt_field}")
 
-    # ❗ KÜLÖN PyG input mindkét modellhez – külön encoderek!
+    # Separate PyG inputs for both models — each has its own encoders
     pyg_block = block_model._graph_to_pyg(graph).to(device)
     pyg_field = field_model._graph_to_pyg(graph).to(device)
 
@@ -134,19 +187,19 @@ def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str):
     logits_block = block_model.head(emb_block).squeeze(-1)
     scores_block = torch.sigmoid(logits_block)
 
-    # küszöbölés + OSZTÁLYSZŰRÉS: csak HeaderTypeDeclarationContext
+    # Thresholding + TYPE FILTER: only HeaderTypeDeclarationContext
     raw_block_hits = [i for i, s in enumerate(scores_block.tolist()) if s > THRESHOLD_BLOCK]
     block_hits = [i for i in raw_block_hits
                   if graph.nodes[node_ids[i]].get("class_") == "HeaderTypeDeclarationContext"]
 
-    print_predictions("📦 HeaderBlockClassifier (HeaderTypeDeclarationContext)", block_hits, graph, THRESHOLD_BLOCK)
+    print_predictions("HeaderBlockClassifier (HeaderTypeDeclarationContext)", block_hits, graph, THRESHOLD_BLOCK)
 
-    # célzott debug a konkrét headerre (3273)
+    # Focused debug for a specific header node id (example: 3273)
     _print_node_score(graph, 3273, scores_block)
     if not block_hits:
         top = _topk_debug(scores_block, graph, k=10)
         if top:
-            print("ℹ️ HeaderBlock top-10 jelölt (score, nodeId, class, value):")
+            print("HeaderBlock top-10 candidates (score, nodeId, class, value):")
             for r, s, nid, c, v in top:
                 print(f"   {r:2d}. {s:0.4f} | id={nid} | class={c} | value={v}")
 
@@ -156,7 +209,7 @@ def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str):
     logits_field = field_model.head(emb_field).squeeze(-1)
     scores_field = torch.sigmoid(logits_field)
 
-    # Kandidáta halmaz: a Block által pozitívnak ítélt header-gyökerek leszármazottai
+    # Candidate set: descendants of block-predicted header roots
     pred_headers = [node_ids[i] for i in block_hits]
     cand = set()
     for h in pred_headers:
@@ -166,65 +219,65 @@ def classify_graph(graph: nx.DiGraph, name: str, model_dir: str, device: str):
             cand.add(cur)
             for nxt in graph.successors(cur):
                 if nxt not in vis:
-                    vis.add(nxt);
+                    vis.add(nxt)
                     q.append(nxt)
 
     if cand:
         cand_idx = [i for i, nid in enumerate(node_ids) if nid in cand]
     else:
-        cand_idx = list(range(len(node_ids)))  # fallback: teljes gráf
+        cand_idx = list(range(len(node_ids)))  # fallback: full graph
 
-    # küszöbölés + OSZTÁLYSZŰRÉS: csak StructFieldContext a jelölteken belül
+    # Threshold + TYPE FILTER within candidates: only StructFieldContext
     field_hits = [i for i in cand_idx
                   if scores_field[i] > THRESHOLD_FIELD
                   and graph.nodes[node_ids[i]].get("class_") == "StructFieldContext"]
 
-    print_predictions("📐 HeaderFieldClassifier (StructFieldContext-ek)", field_hits, graph, THRESHOLD_FIELD)
+    print_predictions("📐 HeaderFieldClassifier (StructFieldContext)", field_hits, graph, THRESHOLD_FIELD)
 
-    # célzott debug a konkrét fieldre (3283)
+    # Focused debug for a specific field node id (example: 3283)
     _print_node_score(graph, 3283, scores_field)
 
     if not field_hits:
-        # top-10 a jelölteken belül, CSAK StructFieldContext
+        # top‑10 within candidates, ONLY StructFieldContext
         pairs = [(i, float(scores_field[i])) for i in cand_idx
                  if graph.nodes[node_ids[i]].get("class_") == "StructFieldContext"]
         pairs.sort(key=lambda t: t[1], reverse=True)
         top_pairs = pairs[:10]
         if top_pairs:
-            print("ℹ️ HeaderField top-10 StructFieldContext (csak a header-subtree-ben):")
+            print("HeaderField top-10 StructFieldContext (within header subtree only):")
             for rank, (i, sc) in enumerate(top_pairs, 1):
                 nid = node_ids[i]
                 print(f"   {rank:2d}. {sc:0.4f} | id={nid} | class=StructFieldContext")
 
 
-def run_predictions(path: str, model_dir: str, device: str):
+def run_predictions(path: str, model_dir: str, device: str) -> None:
     graphs = load_graphs_any(path)
     if not graphs:
-        print(f"❌ Nem találtam gráfot itt: {path}")
+        print(f"No graphs found at: {path}")
         return
-    print(f"📁 {len(graphs)} gráf betöltve a(z) '{path}' forrásból.")
+    print(f"{len(graphs)} graph(s) loaded from '{path}'.")
     for name, G in graphs:
         classify_graph(G, name, model_dir, device)
 
 
 # --------- main ---------
-def main():
+def main() -> None:
     device = detect_device()
-    print(f"🖥️ Eszköz: {device.upper()}")
+    print(f"Device: {device.upper()}")
 
     if TRAIN_MODE:
-        print("🚀 Tanítási mód bekapcsolva.")
-        print(f"  - Adatok: {DATA_DIR}")
-        print(f"  - Modellek: {MODEL_DIR}")
-        print(f"  - Epochok: {EPOCHS}")
+        print("   Training mode is ON.")
+        print(f"  - Data: {DATA_DIR}")
+        print(f"  - Models: {MODEL_DIR}")
+        print(f"  - Epochs: {EPOCHS}")
         train_and_save_models(data_dir=DATA_DIR, output_dir=MODEL_DIR, epochs=EPOCHS)
-        print("✅ Tanítás kész. Modellek elmentve.")
+        print("Training complete. Models saved.")
     else:
         if not os.path.isdir(MODEL_DIR):
-            print(f"❌ A modellek mappája nem található: {MODEL_DIR}")
+            print(f"Model directory not found: {MODEL_DIR}")
             return
         run_predictions(CLASSIFY_GRAPH_PATH, MODEL_DIR, device=device)
-        print("\n✅ Validáció/predikció kész.")
+        print("\nValidation/prediction complete.")
 
 
 if __name__ == "__main__":
