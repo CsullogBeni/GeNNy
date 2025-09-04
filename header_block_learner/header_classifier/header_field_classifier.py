@@ -12,16 +12,63 @@ from graph_learner.abstract_graph_learner import AbstractGraphLearner
 
 
 class HeaderFieldClassifier(AbstractGraphLearner):
+    """
+    A graph-based neural classifier for detecting field nodes inside header
+    declarations of abstract syntax graphs.
+
+    This model extends `AbstractGraphLearner` and focuses on identifying
+    `StructFieldContext` nodes that occur under `HeaderTypeDeclarationContext`.
+    It leverages a deeper GNN (multiple layers + dropout) to capture
+    multi-hop dependencies inside header subtrees.
+
+    Key features:
+        - Encodes AST nodes into vector representations.
+        - Trains a multi-layer GNN to propagate structural information.
+        - Uses a binary classification head for identifying struct fields.
+        - Restricts training to nodes within header subtrees to reduce noise.
+
+    Training process:
+        1. Encoders are fitted on input JSON graphs.
+        2. Graphs are pruned (removing leaves or subtrees) to improve robustness.
+        3. Labels are assigned: only `StructFieldContext` nodes inside headers
+           are marked positive.
+        4. A subtree mask is applied so that only header-related nodes (positive
+           or negative) are used for training.
+        5. Model is trained with a weighted binary cross-entropy loss to
+           handle class imbalance.
+
+    Saving and loading:
+        - The model can be saved together with optimizer state and encoders.
+        - A trained model can be restored for inference or retraining.
+
+    Args:
+        hidden_dim (int, optional): Size of the hidden representation in the GNN. Default is 64.
+        device (str, optional): Device to run the model on, e.g. `"cpu"` or `"cuda"`. Default is `"cpu"`.
+        gnn_layers (int, optional): Number of GNN layers. Default is 5.
+        gnn_dropout (float, optional): Dropout rate applied in GNN layers. Default is 0.10.
+    """
+
     def __init__(self, hidden_dim: int = 64, device: str = "cpu",
                  gnn_layers: int = 5, gnn_dropout: float = 0.10):
-        # több réteg + kis dropout a multi-hop mintázatokhoz
         super().__init__(hidden_dim=hidden_dim, device=device, gnn_layers=gnn_layers, gnn_dropout=gnn_dropout)
         self.head = nn.Linear(self.hidden_dim, 1)
         self.to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-    # --- HELYES CÍMKÉZÉS: header alatti StructFieldContext = 1 ---
     def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
+        """
+        Generate binary labels for nodes in the input graph.
+
+        A node is labeled as positive (1.0) if it is a `StructFieldContext`
+        that belongs to the subtree of a `HeaderTypeDeclarationContext`.
+        All other nodes receive a label of 0.0.
+
+        Args:
+            graph (nx.DiGraph): Input directed graph with node attributes.
+
+        Returns:
+            torch.Tensor: A tensor of shape `[num_nodes]` with float labels.
+        """
         labels = torch.zeros(len(graph.nodes), dtype=torch.float32, device=self.device)
         id_to_index = {nid: i for i, nid in enumerate(graph.nodes)}
 
@@ -36,7 +83,7 @@ class HeaderFieldClassifier(AbstractGraphLearner):
                         if graph.nodes[c3].get("class_") != "DerivedTypeDeclarationContext": continue
                         for c4 in graph.successors(c3):
                             if graph.nodes[c4].get("class_") != "HeaderTypeDeclarationContext": continue
-                            # BFS a header-subtree-n
+                            # BFS traversal of the header subtree
                             q, vis = [c4], set()
                             while q:
                                 cur = q.pop(0)
@@ -47,9 +94,20 @@ class HeaderFieldClassifier(AbstractGraphLearner):
                                 q.extend(list(graph.successors(cur)))
         return labels
 
-    # --- Maszk: csak a header-subtree csomópontok (negatívok is itt!) ---
     @staticmethod
     def _header_subtree_mask(graph: nx.DiGraph) -> set:
+        """
+        Identify all node IDs that belong to header subtrees.
+
+        This mask is used to restrict training to nodes within header
+        declarations (both positives and negatives).
+
+        Args:
+            graph (nx.DiGraph): Input directed graph with node attributes.
+
+        Returns:
+            set: A set of node IDs belonging to header subtrees.
+        """
         mask_ids = set()
         for node_id in graph.nodes:
             if graph.nodes[node_id].get("class_") != "InputContext":
@@ -63,7 +121,7 @@ class HeaderFieldClassifier(AbstractGraphLearner):
                         for c4 in graph.successors(c3):
                             if graph.nodes[c4].get("class_") != "HeaderTypeDeclarationContext":
                                 continue
-                            # jelöljük a teljes header-subtree-t
+                            # BFS traversal to collect entire header subtree
                             q, vis = [c4], set([c4])
                             while q:
                                 cur = q.pop(0)
@@ -76,6 +134,26 @@ class HeaderFieldClassifier(AbstractGraphLearner):
 
     def fit(self, filepaths: List[str], epochs: int = 20,
             leaf_phase_epochs: int = 5, prune_step: float = 0.05, prune_max_ratio: float = 0.30):
+        """
+        Train the classifier on a dataset of JSON graphs.
+
+        Training uses two phases of pruning:
+            - Early epochs: random leaf deletion.
+            - Later epochs: random subtree deletion.
+
+        Additionally, a mask is applied to ensure only header-subtree nodes
+        contribute to training.
+
+        Args:
+            filepaths (List[str]): Paths to JSON graph files.
+            epochs (int, optional): Number of training epochs. Default is 20.
+            leaf_phase_epochs (int, optional): Number of epochs using leaf pruning. Default is 5.
+            prune_step (float, optional): Incremental pruning ratio per epoch. Default is 0.05.
+            prune_max_ratio (float, optional): Maximum pruning ratio. Default is 0.30.
+
+        Returns:
+            None
+        """
         self.fit_encoders(filepaths)
         self.train()
 
@@ -96,15 +174,13 @@ class HeaderFieldClassifier(AbstractGraphLearner):
                 y = self._get_label_tensor(G)
                 data.y = y
 
-                # ➕ maszk: csak a header-subtree csomópontok tanuljanak
+                # Apply mask: restrict to header-subtree nodes
                 header_ids = self._header_subtree_mask(G)
-                # a node-sorrendet az _graph_to_pyg tette data._node_ids-be
                 nid_list = getattr(data, "_node_ids", [])
                 mask = torch.zeros(len(nid_list), dtype=torch.bool, device=self.device)
                 for i, nid in enumerate(nid_list):
                     if nid in header_ids:
                         mask[i] = True
-                # ha a pruning kinyírta a header-subtree-t → ugorjuk a mintát
                 if mask.sum().item() == 0:
                     continue
 
@@ -117,6 +193,17 @@ class HeaderFieldClassifier(AbstractGraphLearner):
             self._train_epoch(dataset, epoch)
 
     def _train_epoch(self, dataset: List[torch_geometric.data.Data], epoch: int):
+        """
+        Train the model for a single epoch on the provided dataset.
+
+        Loss is computed only on nodes belonging to header subtrees,
+        using binary cross-entropy with `pos_weight` correction
+        to handle class imbalance.
+
+        Args:
+            dataset (List[torch_geometric.data.Data]): List of graph samples.
+            epoch (int): Current epoch index.
+        """
         self.train()
         total_loss = 0.0
 
@@ -150,12 +237,34 @@ class HeaderFieldClassifier(AbstractGraphLearner):
         print(f"Epoch {epoch} | HeaderFieldClassifier loss: {total_loss:.4f}")
 
     def predict_subgraph(self, graph_path: str, node_embeddings: torch.Tensor) -> List[int]:
+        """
+        Predict which nodes in a graph correspond to struct fields
+        within header declarations.
+
+        Args:
+            graph_path (str): Path to the original graph file (not directly used).
+            node_embeddings (torch.Tensor): Node embeddings from the GNN.
+
+        Returns:
+            List[int]: Indices of nodes predicted as struct fields.
+        """
         with torch.no_grad():
             logits = self.head(node_embeddings).squeeze(-1)
             scores = torch.sigmoid(logits)
         return [i for i, s in enumerate(scores.tolist()) if s > 0.5]
 
     def save_model(self, path: str):
+        """
+        Save the model, optimizer state, and encoders to disk.
+
+        Files created:
+            - `header_field_model.pt`: model and optimizer state.
+            - `header_field_class_encoder.pkl`: class encoder.
+            - `header_field_value_encoder.pkl`: value encoder.
+
+        Args:
+            path (str): Directory path where files are saved.
+        """
         os.makedirs(path, exist_ok=True)
         torch.save({
             "model_state": self.state_dict(),
@@ -170,6 +279,17 @@ class HeaderFieldClassifier(AbstractGraphLearner):
         print(f"Model saved to {path}")
 
     def load_model(self, path: str):
+        """
+        Load the model, optimizer state, and encoders from disk.
+
+        Expected files:
+            - `header_field_model.pt`
+            - `header_field_class_encoder.pkl`
+            - `header_field_value_encoder.pkl`
+
+        Args:
+            path (str): Directory path where the model is stored.
+        """
         checkpoint = torch.load(os.path.join(path, "header_field_model.pt"), map_location=self.device)
         self.load_state_dict(checkpoint["model_state"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state"])
