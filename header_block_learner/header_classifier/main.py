@@ -63,7 +63,7 @@ from train_headers import train_and_save_models
 from header_block_classifier import HeaderBlockClassifier
 from header_field_classifier import HeaderFieldClassifier
 
-# 🔧 CONFIGURATION
+# CONFIGURATION
 TRAIN_MODE = True
 CLASSIFY_GRAPH_PATH = "validation_data"  # can be a directory or a single file
 DATA_DIR = "data"
