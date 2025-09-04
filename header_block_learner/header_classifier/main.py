@@ -64,13 +64,13 @@ from header_block_classifier import HeaderBlockClassifier
 from header_field_classifier import HeaderFieldClassifier
 
 # CONFIGURATION
-TRAIN_MODE = True
+TRAIN_MODE = False
 CLASSIFY_GRAPH_PATH = "validation_data"  # can be a directory or a single file
 DATA_DIR = "data"
 MODEL_DIR = "models"
 EPOCHS = 60
 THRESHOLD_BLOCK = 0.95
-THRESHOLD_FIELD = 0.65
+THRESHOLD_FIELD = 0.95
 
 
 # --------- utilities ---------
