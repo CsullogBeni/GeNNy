@@ -1,0 +1,170 @@
+{
+  "nodes": [
+    {
+      "id": 3270,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5977,
+      "value": null,
+      "nodeId": 3270,
+      "class_": "DeclarationContext"
+    },
+    {
+      "id": 3271,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5977,
+      "value": null,
+      "nodeId": 3271,
+      "class_": "TypeDeclarationContext"
+    },
+    {
+      "id": 3272,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5977,
+      "value": null,
+      "nodeId": 3272,
+      "class_": "DerivedTypeDeclarationContext"
+    },
+    {
+      "id": 3273,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5977,
+      "value": null,
+      "nodeId": 3273,
+      "class_": "HeaderTypeDeclarationContext"
+    },
+    {
+      "id": 3274,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5929,
+      "value": null,
+      "nodeId": 3274,
+      "class_": "OptAnnotationsContext"
+    },
+    {
+      "id": 3275,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5939,
+      "value": "header",
+      "nodeId": 3275,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3276,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3276,
+      "class_": "NameContext"
+    },
+    {
+      "id": 3277,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3277,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 3278,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3278,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 3279,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": "my_header",
+      "nodeId": 3279,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3280,
+      "label": "syn",
+      "line": 445,
+      "start": 5951,
+      "end": 5951,
+      "value": "\\{",
+      "nodeId": 3280,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3296,
+      "label": "syn",
+      "line": 447,
+      "start": 5977,
+      "end": 5977,
+      "value": "\\}",
+      "nodeId": 3296,
+      "class_": "TerminalNodeImpl"
+    }
+  ],
+  "edges": [
+    {
+      "source": 3270,
+      "target": 3271
+    },
+    {
+      "source": 3271,
+      "target": 3272
+    },
+    {
+      "source": 3272,
+      "target": 3273
+    },
+    {
+      "source": 3273,
+      "target": 3274
+    },
+    {
+      "source": 3273,
+      "target": 3275
+    },
+    {
+      "source": 3273,
+      "target": 3276
+    },
+    {
+      "source": 3273,
+      "target": 3280
+    },
+    {
+      "source": 3273,
+      "target": 3296
+    },
+    {
+      "source": 3276,
+      "target": 3277
+    },
+    {
+      "source": 3277,
+      "target": 3278
+    },
+    {
+      "source": 3278,
+      "target": 3279
+    }
+  ]
+}

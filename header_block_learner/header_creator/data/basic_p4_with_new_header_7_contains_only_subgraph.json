@@ -1,0 +1,380 @@
+{
+  "nodes": [
+    {
+      "id": 3270,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5982,
+      "value": null,
+      "nodeId": 3270,
+      "class_": "DeclarationContext"
+    },
+    {
+      "id": 3271,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5982,
+      "value": null,
+      "nodeId": 3271,
+      "class_": "TypeDeclarationContext"
+    },
+    {
+      "id": 3272,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5982,
+      "value": null,
+      "nodeId": 3272,
+      "class_": "DerivedTypeDeclarationContext"
+    },
+    {
+      "id": 3273,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5982,
+      "value": null,
+      "nodeId": 3273,
+      "class_": "HeaderTypeDeclarationContext"
+    },
+    {
+      "id": 3274,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5929,
+      "value": null,
+      "nodeId": 3274,
+      "class_": "OptAnnotationsContext"
+    },
+    {
+      "id": 3275,
+      "label": "syn",
+      "line": 445,
+      "start": 5934,
+      "end": 5939,
+      "value": "header",
+      "nodeId": 3275,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3276,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3276,
+      "class_": "NameContext"
+    },
+    {
+      "id": 3277,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3277,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 3278,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": null,
+      "nodeId": 3278,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 3279,
+      "label": "syn",
+      "line": 445,
+      "start": 5941,
+      "end": 5949,
+      "value": "my_header",
+      "nodeId": 3279,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3280,
+      "label": "syn",
+      "line": 445,
+      "start": 5951,
+      "end": 5951,
+      "value": "\\{",
+      "nodeId": 3280,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3281,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5979,
+      "value": null,
+      "nodeId": 3281,
+      "class_": "StructFieldListContext"
+    },
+    {
+      "id": 3282,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5951,
+      "value": null,
+      "nodeId": 3282,
+      "class_": "StructFieldListContext"
+    },
+    {
+      "id": 3283,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5979,
+      "value": null,
+      "nodeId": 3283,
+      "class_": "StructFieldContext"
+    },
+    {
+      "id": 3284,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5951,
+      "value": null,
+      "nodeId": 3284,
+      "class_": "OptAnnotationsContext"
+    },
+    {
+      "id": 3285,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5961,
+      "value": null,
+      "nodeId": 3285,
+      "class_": "TypeRefContext"
+    },
+    {
+      "id": 3286,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5961,
+      "value": null,
+      "nodeId": 3286,
+      "class_": "BaseTypeContext"
+    },
+    {
+      "id": 3287,
+      "label": "syn",
+      "line": 446,
+      "start": 5955,
+      "end": 5957,
+      "value": "bit",
+      "nodeId": 3287,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3288,
+      "label": "syn",
+      "line": 446,
+      "start": 5958,
+      "end": 5958,
+      "value": "\\<",
+      "nodeId": 3288,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3289,
+      "label": "syn",
+      "line": 446,
+      "start": 5959,
+      "end": 5960,
+      "value": "16",
+      "nodeId": 3289,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3290,
+      "label": "syn",
+      "line": 446,
+      "start": 5961,
+      "end": 5961,
+      "value": "\\>",
+      "nodeId": 3290,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3291,
+      "label": "syn",
+      "line": 446,
+      "start": 5965,
+      "end": 5978,
+      "value": null,
+      "nodeId": 3291,
+      "class_": "NameContext"
+    },
+    {
+      "id": 3292,
+      "label": "syn",
+      "line": 446,
+      "start": 5965,
+      "end": 5978,
+      "value": null,
+      "nodeId": 3292,
+      "class_": "NonTypeNameContext"
+    },
+    {
+      "id": 3293,
+      "label": "syn",
+      "line": 446,
+      "start": 5965,
+      "end": 5978,
+      "value": null,
+      "nodeId": 3293,
+      "class_": "Type_or_idContext"
+    },
+    {
+      "id": 3294,
+      "label": "syn",
+      "line": 446,
+      "start": 5965,
+      "end": 5978,
+      "value": "identification",
+      "nodeId": 3294,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3295,
+      "label": "syn",
+      "line": 446,
+      "start": 5979,
+      "end": 5979,
+      "value": ";",
+      "nodeId": 3295,
+      "class_": "TerminalNodeImpl"
+    },
+    {
+      "id": 3296,
+      "label": "syn",
+      "line": 447,
+      "start": 5982,
+      "end": 5982,
+      "value": "\\}",
+      "nodeId": 3296,
+      "class_": "TerminalNodeImpl"
+    }
+  ],
+  "edges": [
+    {
+      "source": 3270,
+      "target": 3271
+    },
+    {
+      "source": 3271,
+      "target": 3272
+    },
+    {
+      "source": 3272,
+      "target": 3273
+    },
+    {
+      "source": 3273,
+      "target": 3274
+    },
+    {
+      "source": 3273,
+      "target": 3275
+    },
+    {
+      "source": 3273,
+      "target": 3276
+    },
+    {
+      "source": 3273,
+      "target": 3280
+    },
+    {
+      "source": 3273,
+      "target": 3281
+    },
+    {
+      "source": 3273,
+      "target": 3296
+    },
+    {
+      "source": 3276,
+      "target": 3277
+    },
+    {
+      "source": 3277,
+      "target": 3278
+    },
+    {
+      "source": 3278,
+      "target": 3279
+    },
+    {
+      "source": 3281,
+      "target": 3282
+    },
+    {
+      "source": 3281,
+      "target": 3283
+    },
+    {
+      "source": 3283,
+      "target": 3284
+    },
+    {
+      "source": 3283,
+      "target": 3285
+    },
+    {
+      "source": 3283,
+      "target": 3291
+    },
+    {
+      "source": 3283,
+      "target": 3295
+    },
+    {
+      "source": 3285,
+      "target": 3286
+    },
+    {
+      "source": 3286,
+      "target": 3287
+    },
+    {
+      "source": 3286,
+      "target": 3288
+    },
+    {
+      "source": 3286,
+      "target": 3289
+    },
+    {
+      "source": 3286,
+      "target": 3290
+    },
+    {
+      "source": 3291,
+      "target": 3292
+    },
+    {
+      "source": 3292,
+      "target": 3293
+    },
+    {
+      "source": 3293,
+      "target": 3294
+    }
+  ]
+}
