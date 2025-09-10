@@ -15,38 +15,32 @@ from graph_learner.abstract_graph_learner import AbstractGraphLearner
 
 @dataclass
 class FieldSpec:
+    """
+    Lightweight container describing a header field to be added or searched for.
+
+    Attributes:
+        type: Optional textual type of the field (e.g., "bit<16>", "mac_addr").
+        name: Optional identifier/name of the field (e.g., "etherType").
+    """
     type: Optional[str] = None
     name: Optional[str] = None
 
 
 class HeaderCompletionModel(AbstractGraphLearner):
     """
-    Feltételes beszúrási-hely prediktor és opcionális AST-építő.
+    Header localization and deterministic AST completion for P4-like headers.
 
-    - A GNN kódoló az `AbstractGraphLearner`-ből jön (class/value encoderek + GCN).
-    - `cond_head`: olyan MLP, ami [node_emb ; cond_emb] → logit kimenetet ad.
-      A `cond_emb` a felhasználó által megadott (type, name) tokenekből készül.
-    - Tanítás: (teljes, redukált) párokból származtatott címkékkel.
-        * Pozitív: azon `HeaderTypeDeclarationContext` node-ok a redukált gráfban,
-          amelyek alatt mező hiányzik a teljeshez képest (azonos node-id alapján).
-        * Negatív: a többi header node.
+    This model scores header nodes (HeaderTypeDeclarationContext) for a given set
+    of field specifications and, optionally, amends the AST by inserting the field
+    subtree into the selected header. The GNN encoder and label/value encoders are
+    provided by AbstractGraphLearner; this class adds a conditional head for
+    header scoring and algorithmic routines for AST mutation.
     """
-
-    # ---- Kötelező/absztrakt metódusok a bázisosztályból: nem szükségesek a feladathoz → pass ----
-    def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
-        pass
-
-    def _train_epoch(self, dataset: List[Data], epoch: int) -> None:
-        pass
-
-    def predict_subgraph(self, graph_path: str, node_embeddings: torch.Tensor) -> List[int]:
-        pass
 
     def __init__(self, hidden_dim: int = 64, device: str = "cpu",
                  gnn_layers: int = 3, gnn_dropout: float = 0.10):
         super().__init__(hidden_dim=hidden_dim, device=device,
                          gnn_layers=gnn_layers, gnn_dropout=gnn_dropout)
-        # Feltételes fej: [node_emb ; cond_emb] → 1
         self.cond_head = nn.Sequential(
             nn.Linear(self.hidden_dim * 2, self.hidden_dim),
             nn.ReLU(inplace=False),
@@ -56,11 +50,22 @@ class HeaderCompletionModel(AbstractGraphLearner):
         self.to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-    # ----------------------------
-    # UTIL: JSON <-> networkx
-    # ----------------------------
     @staticmethod
     def load_graph_json(path: str) -> nx.DiGraph:
+        """
+        Load a directed AST graph from a JSON file into a NetworkX DiGraph.
+
+        The JSON is expected to contain a list of ``nodes`` (each with an ``id``
+        and arbitrary attributes) and a list of ``edges`` (objects with
+        ``source`` and ``target`` ids). Edges where either endpoint is missing
+        from the node set are skipped.
+
+        Args:
+            path: Filesystem path to the JSON graph.
+
+        Returns:
+            A ``nx.DiGraph`` whose nodes carry the attributes from the JSON.
+        """
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         G = nx.DiGraph()
@@ -73,11 +78,35 @@ class HeaderCompletionModel(AbstractGraphLearner):
         return G
 
     def _load_graph_from_json(self, path: str) -> nx.DiGraph:
-        """Kompatibilitási wrapper: a bázisban is lehet hasonló segédfüggvény."""
+        """
+        Compatibility wrapper around :meth:`load_graph_json`.
+
+        Some base classes/utilities may define similarly named helpers; this method
+        centralizes how graphs are loaded in this implementation.
+
+        Args:
+            path: Filesystem path to the JSON graph.
+
+        Returns:
+            The loaded ``nx.DiGraph``.
+        """
         return self.load_graph_json(path)
 
     @staticmethod
     def dump_graph_json(G: nx.DiGraph, path: str) -> str:
+        """
+        Serialize a NetworkX DiGraph back to the expected JSON format.
+
+        Missing common attributes are filled with reasonable defaults to keep
+        downstream tooling robust.
+
+        Args:
+            G: The graph to serialize.
+            path: Output file path.
+
+        Returns:
+            The same ``path`` for convenience/chaining.
+       """
         nodes = []
         for nid, attrs in G.nodes(data=True):
             a = dict(attrs)
@@ -95,15 +124,33 @@ class HeaderCompletionModel(AbstractGraphLearner):
             json.dump({"nodes": nodes, "edges": edges}, f, ensure_ascii=False, indent=2)
         return path
 
-    # ----------------------------
-    # HEADER / FIELD lokalizálás
-    # ----------------------------
     @staticmethod
     def _header_nodes(G: nx.DiGraph) -> List[int]:
+        """
+        Collect node ids that represent headers in the AST.
+
+        Args:
+            G: AST graph.
+
+        Returns:
+            List of node ids whose ``class_`` equals ``"HeaderTypeDeclarationContext"``.
+        """
         return [n for n in G.nodes if G.nodes[n].get("class_") == "HeaderTypeDeclarationContext"]
 
     @staticmethod
     def _struct_fields_under(G: nx.DiGraph, header_id: int) -> List[int]:
+        """
+        Gather all ``StructFieldContext`` nodes in the subtree of a header.
+
+        A simple BFS is used to traverse descendants.
+
+        Args:
+            G: AST graph.
+            header_id: The node id of the header whose fields are requested.
+
+        Returns:
+            A list of node ids representing struct fields under the header.
+        """
         out = []
         q, vis = [header_id], set()
         while q:
@@ -120,6 +167,16 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _descendants(G: nx.DiGraph, nid: int) -> Iterable[int]:
+        """
+        Iterate over all descendants of a node in BFS order.
+
+        Args:
+            G: AST graph.
+            nid: Start node id.
+
+        Yields:
+            Node ids of all descendants (children, grandchildren, ...).
+        """
         q, vis = [nid], set()
         while q:
             cur = q.pop(0)
@@ -130,12 +187,27 @@ class HeaderCompletionModel(AbstractGraphLearner):
                     yield nxt
 
     @staticmethod
-    def _first_value_under(G: nx.DiGraph, nid: int, class_path_prefix: Optional[Tuple[str, ...]] = None) -> Optional[
-        str]:
-        """Heurisztika: keressünk `TerminalNodeImpl.value`-t az al-fában.
-        Ha `class_path_prefix` meg van adva, akkor előnyben részesítjük az olyan
-        útvonalakat, ahol a csomópontok osztálylánca ilyen prefixszel kezdődik
-        (pl. ("TypeNameContext",))."""
+    def _first_value_under(G: nx.DiGraph,
+                           nid: int,
+                           class_path_prefix: Optional[Tuple[str, ...]] = None
+                           ) -> Optional[str]:
+        """
+        Heuristically extract a terminal token value under a subtree.
+
+        The routine scans breadth-first for ``TerminalNodeImpl.value``. If
+        ``class_path_prefix`` is provided, values encountered along paths whose
+        sequence of ``class_`` names begins with the given prefix are preferred.
+
+        Args:
+            G: AST graph.
+            nid: Root node id of the subtree to search.
+            class_path_prefix: Optional tuple of class names describing a preferred
+                prefix along the path (e.g., ``("TypeNameContext",)``).
+
+        Returns:
+            The first matching token value according to the preference rule, or
+            ``None`` if no terminal value exists under the subtree.
+        """
         from collections import deque
         dq = deque([(nid, [])])
         best_any = None
@@ -160,7 +232,21 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _extract_field_tokens(G: nx.DiGraph, field_id: int) -> FieldSpec:
-        # Típus: próbáljuk TypeName/PrefixedType ágakon a legelső terminált
+        """
+        Extract best-effort type and name tokens from a field subtree.
+
+        The method walks the descendants of a ``StructFieldContext`` and tries to
+        recover a type-like token (by prioritizing TypeName/PrefixedType branches)
+        and a name-like token (by prioritizing NonTypeName branches).
+
+        Args:
+            G: AST graph.
+            field_id: Node id of the ``StructFieldContext``.
+
+        Returns:
+            A :class:`FieldSpec` with possibly ``None`` components if tokens cannot
+            be found.
+        """
         type_val = None
         name_val = None
         for d in HeaderCompletionModel._descendants(G, field_id):
@@ -173,12 +259,20 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 break
         return FieldSpec(type=type_val, name=name_val)
 
-    # ----------------------------
-    # PÁR-ADATOK FELDOLGOZÁSA
-    # ----------------------------
     @staticmethod
     def _match_pairs_in_dir(pairs_dir: str) -> List[Tuple[str, str]]:
-        """Párok kigyűjtése: `*_reduced.json` ↔ azonos név `_reduced` nélkül."""
+        """
+        Find matching (full, reduced) graph JSON pairs in a directory.
+
+        A pair is defined as ``<name>.json`` and ``<name>_reduced.json`` both
+        present in ``pairs_dir``.
+
+        Args:
+            pairs_dir: Directory to scan.
+
+        Returns:
+            A sorted list of tuples ``(full_path, reduced_path)`` for each match.
+        """
         files = [f for f in os.listdir(pairs_dir) if f.endswith(".json")]
         reduced = [f for f in files if f.endswith("_reduced.json")]
         out: List[Tuple[str, str]] = []
@@ -191,11 +285,23 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _missing_fields(fullG: nx.DiGraph, redG: nx.DiGraph) -> List[Tuple[int, int]]:
-        """(header_id, missing_field_id_in_full) listát ad vissza."""
+        """
+        Compute which fields present in the full graph are missing in the reduced one.
+
+        Only headers that exist in both graphs are considered. For each common header,
+        any ``StructFieldContext`` present in ``fullG`` but absent in ``redG`` is
+        reported as missing.
+
+        Args:
+            fullG: The full AST graph.
+            redG: The reduced AST graph.
+
+        Returns:
+            A list of ``(header_id, missing_field_id_in_full)`` tuples.
+        """
         miss: List[Tuple[int, int]] = []
         for h in HeaderCompletionModel._header_nodes(fullG):
             if h not in redG:
-                # Ha a header node teljesen hiányzik a redukáltból, átugorjuk
                 continue
             full_fields = set(HeaderCompletionModel._struct_fields_under(fullG, h))
             red_fields = set(HeaderCompletionModel._struct_fields_under(redG, h))
@@ -204,12 +310,20 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 miss.append((h, fid))
         return miss
 
-    # ----------------------------
-    # ENCODING A FELTÉTELHEZ
-    # ----------------------------
     def _encode_condition(self, specs: List[FieldSpec]) -> torch.Tensor:
-        """Egy vagy több mezőspecifikációt vektorozunk → [hidden_dim].
-        Heurisztika: type/name token embeddingek átlaga, majd átlag a mezők között is.
+        """
+        Encode one or more field specifications into a fixed-size vector.
+
+        Heuristic:
+          * Tokenize each spec using its ``type`` and ``name`` (if present).
+          * Map tokens through the learned value encoder/autoencoder.
+          * Average token embeddings per field, then average across fields.
+
+        Args:
+            specs: List of field specifications to encode.
+
+        Returns:
+            A tensor of shape ``[hidden_dim]`` on ``self.device``.
         """
         if not specs:
             return torch.zeros(self.hidden_dim, device=self.device)
@@ -224,28 +338,31 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 val_emb = torch.zeros(self.hidden_dim, device=self.device)
             else:
                 enc = self._safe_transform(self.value_encoder, tokens, self.VALUE_UNK)
-                enc_t = torch.as_tensor(enc, dtype=torch.float32, device=self.device).unsqueeze(1)  # [T,1]
-                ve = self.value_autoencoder(enc_t)  # [T, hidden]
-                val_emb = ve.mean(dim=0)  # [hidden]
+                enc_t = torch.as_tensor(enc, dtype=torch.float32, device=self.device).unsqueeze(1)
+                ve = self.value_autoencoder(enc_t)
+                val_emb = ve.mean(dim=0)
             vals.append(val_emb)
         return torch.stack(vals, dim=0).mean(dim=0)
 
-    # ----------------------------
-    # TANÍTÁS PÁROKON
-    # ----------------------------
     def fit_on_pairs(self, pairs: List[Tuple[str, str]], epochs: int = 20,
                      prune_step: float = 0.05, prune_max_ratio: float = 0.30) -> None:
-        """Tanítás (teljes_path, redukált_path) párokon.
-
-        Megjegyzés: az encoder(eke)t a *teljes és redukált* fájlok unióján tanítjuk.
         """
-        # 1) Encoder tanítás: minden érintett fájl
+        Train encoders and the conditional head using (full, reduced) graph pairs.
+
+        For curriculum-like robustness, the reduced graph can be further pruned
+        during early epochs by randomly deleting leaves or whole subtrees.
+
+        Args:
+            pairs: List of ``(full_json_path, reduced_json_path)`` pairs.
+            epochs: Number of training epochs.
+            prune_step: Incremental pruning ratio added per epoch.
+            prune_max_ratio: Upper bound on pruning ratio.
+        """
         all_files: List[str] = []
         for full_p, red_p in pairs:
             all_files.extend([full_p, red_p])
         self.fit_encoders(all_files)
 
-        # 2) Epoch-ok
         for epoch in range(epochs):
             ratio = min(prune_step * (epoch + 1), prune_max_ratio)
             total_loss = 0.0
@@ -256,30 +373,25 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 fullG = self._load_graph_from_json(full_p)
                 redG = self._load_graph_from_json(red_p)
 
-                # opcionális augmentáció a redukálton (stabilitás): levelek/subtree törlés
                 if epoch > 0:
                     if epoch < 3:
                         redG = self._delete_random_leaves(redG, ratio)
                     else:
                         redG = self._delete_random_subtrees(redG, ratio)
 
-                # Hiányzó mezők és címkék
-                miss = self._missing_fields(fullG, redG)  # [(header_id, field_id_in_full), ...]
+                miss = self._missing_fields(fullG, redG)
                 if not miss:
                     continue
 
-                # Kinyerjük a hiányzó mezők tokenjeit → condition
                 cond_specs: List[FieldSpec] = []
                 for (_, fid) in miss:
                     cond_specs.append(self._extract_field_tokens(fullG, fid))
-                cond_vec = self._encode_condition(cond_specs)  # [hidden]
+                cond_vec = self._encode_condition(cond_specs)
 
-                # PyG adatok és node-embedingek a redukált gráfról
                 data = self._graph_to_pyg(redG)
                 x = self._encode_node_features(data._raw_node_attrs)
-                emb = self.gnn(x, data.edge_index)  # [N, hidden]
+                emb = self.gnn(x, data.edge_index)
 
-                # Címkék: csak a HeaderTypeDeclarationContext csomópontok számitanak
                 node_ids: List[int] = getattr(data, "_node_ids", list(redG.nodes))
                 is_header = torch.tensor([
                     1 if redG.nodes[n].get("class_") == "HeaderTypeDeclarationContext" else 0
@@ -295,15 +407,12 @@ class HeaderCompletionModel(AbstractGraphLearner):
                         except ValueError:
                             pass
 
-                # Ha nincs header a maszkban, lépjünk tovább
                 if is_header.sum().item() == 0:
                     continue
 
-                # Feltétel vektor broadcasting a csomópontokra
-                cond = cond_vec.unsqueeze(0).expand(emb.size(0), -1)  # [N, hidden]
-                logits = self.cond_head(torch.cat([emb, cond], dim=1)).squeeze(-1)  # [N]
+                cond = cond_vec.unsqueeze(0).expand(emb.size(0), -1)
+                logits = self.cond_head(torch.cat([emb, cond], dim=1)).squeeze(-1)
 
-                # Maszk alkalmazása
                 logits_m = logits[is_header]
                 labels_m = labels[is_header]
 
@@ -325,24 +434,41 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     def fit_on_pairs_dir(self, pairs_dir: str, epochs: int = 20,
                          prune_step: float = 0.05, prune_max_ratio: float = 0.30) -> None:
+        """
+        Convenience wrapper to train on all matching pairs in a directory.
+
+        Args:
+            pairs_dir: Directory containing ``*.json`` and ``*_reduced.json`` pairs.
+            epochs: Number of epochs to train.
+            prune_step: Incremental pruning ratio per epoch.
+            prune_max_ratio: Max pruning ratio across epochs.
+        """
         pairs = self._match_pairs_in_dir(pairs_dir)
         if not pairs:
             print(f"No pairs found in: {pairs_dir}")
             return
         self.fit_on_pairs(pairs, epochs=epochs, prune_step=prune_step, prune_max_ratio=prune_max_ratio)
 
-    # ----------------------------
-    # PREDIKCIÓ: beszúrási hely pontozása
-    # ----------------------------
     @torch.no_grad()
     def score_headers(self, graph_path: str, specs: List[FieldSpec]) -> List[Tuple[int, float]]:
-        """Visszaadja az összes `HeaderTypeDeclarationContext` node-ra a pontszámot.
-        Kimenet: [(header_node_id, score), ...] score ∈ [0,1].
+        """
+        Score headers in a graph for their compatibility with the given field specs.
+
+        The method encodes the graph with the GNN, conditions the scoring head on
+        the aggregated field-spec embedding, and returns sigmoid scores for all
+        header nodes.
+
+        Args:
+            graph_path: Path to the JSON graph to evaluate.
+            specs: List of field specifications to condition on.
+
+        Returns:
+            A list of ``(header_node_id, score)`` sorted descending by score.
         """
         G = self._load_graph_from_json(graph_path)
         data = self._graph_to_pyg(G)
         x = self._encode_node_features(data._raw_node_attrs)
-        emb = self.gnn(x, data.edge_index)  # [N, hidden]
+        emb = self.gnn(x, data.edge_index)
         node_ids: List[int] = getattr(data, "_node_ids", list(G.nodes))
 
         cond = self._encode_condition(specs).unsqueeze(0).expand(emb.size(0), -1)
@@ -356,12 +482,21 @@ class HeaderCompletionModel(AbstractGraphLearner):
         out.sort(key=lambda t: t[1], reverse=True)
         return out
 
-    # ----------------------------
-    # AST-ÉPÍTÉS: mező beszúrása
-    # ----------------------------
     @staticmethod
     def _ensure_field_list(G: nx.DiGraph, header_id: int) -> int:
-        """Ha nincs `StructFieldListContext` gyerek, létrehozzuk és visszaadjuk az id-ját."""
+        """
+        Ensure a ``StructFieldListContext`` exists directly under the header.
+
+        If not found, the method creates a new node, attaches it to the header,
+        and returns its id.
+
+        Args:
+            G: AST graph.
+            header_id: Header node id.
+
+        Returns:
+            Node id of the (existing or newly created) field list context.
+        """
         for ch in G.successors(header_id):
             if G.nodes[ch].get("class_") == "StructFieldListContext":
                 return ch
@@ -374,11 +509,32 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _new_id(G: nx.DiGraph, k: int = 1) -> List[int]:
+        """
+        Allocate one or more fresh integer node ids.
+
+        Args:
+            G: AST graph.
+            k: Number of consecutive ids to allocate.
+
+        Returns:
+            A list of ``k`` fresh ids not currently present in the graph.
+        """
         base = max(int(n) for n in G.nodes if isinstance(n, int)) + 1 if len(G) else 1
         return list(range(base, base + k))
 
     @staticmethod
     def _add_terminal(G: nx.DiGraph, parent: int, value: str) -> int:
+        """
+        Create a ``TerminalNodeImpl`` with the given value under ``parent``.
+
+        Args:
+            G: AST graph.
+            parent: Parent node id (edge ``parent → new`` will be added).
+            value: Terminal token value to store.
+
+        Returns:
+            The id of the newly created terminal node.
+        """
         nid = HeaderCompletionModel._new_id(G, 1)[0]
         G.add_node(nid, id=nid, nodeId=nid, label="syn", line=-1, start=-1, end=-1,
                    value=value, class_="TerminalNodeImpl")
@@ -387,6 +543,18 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _add_node(G: nx.DiGraph, parent: int, cls: str, value: Optional[Any] = None) -> int:
+        """
+        Create a non-terminal node with class ``cls`` and optional value.
+
+        Args:
+            G: AST graph.
+            parent: Parent node id; if ``None``, the node is created unattached.
+            cls: Value for the node's ``class_`` attribute.
+            value: Optional payload for the node's ``value`` attribute.
+
+        Returns:
+            The id of the newly created node.
+        """
         nid = HeaderCompletionModel._new_id(G, 1)[0]
         G.add_node(nid, id=nid, nodeId=nid, label="syn", line=-1, start=-1, end=-1,
                    value=value, class_=cls)
@@ -396,24 +564,31 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _build_field_subtree(G: nx.DiGraph, list_id: int, spec: FieldSpec) -> int:
-        """Minimális P4 mező AST felépítése a mintához hasonlóan.
+        """
+        Materialize a complete ``StructFieldContext`` subtree under a field list.
 
-        Struktúra:
-            StructFieldContext
-              ├─ TypeRefContext → TypeNameContext → PrefixedTypeContext → Type_or_idContext → Terminal(type)
-              ├─ NameContext → NonTypeNameContext → Type_or_idContext → Terminal(name)
-              └─ Terminal(';')
+        The produced structure mirrors typical P4 grammar fragments:
+        type branch (``TypeRef → TypeName → PrefixedType → Type_or_id``),
+        name branch (``Name → NonTypeName → Type_or_id``), and a trailing ``;``.
+
+        Args:
+            G: AST graph.
+            list_id: Node id of the parent ``StructFieldListContext``.
+            spec: Desired field type/name; missing parts use placeholders.
+
+        Returns:
+            The node id of the created ``StructFieldContext``.
         """
         f_id = HeaderCompletionModel._add_node(G, list_id, "StructFieldContext")
 
-        # Type-ág
+        # Type-subtree
         tref = HeaderCompletionModel._add_node(G, f_id, "TypeRefContext")
         tname = HeaderCompletionModel._add_node(G, tref, "TypeNameContext")
         tpre = HeaderCompletionModel._add_node(G, tname, "PrefixedTypeContext")
         ttoi = HeaderCompletionModel._add_node(G, tpre, "Type_or_idContext")
         HeaderCompletionModel._add_terminal(G, ttoi, spec.type or "<UNK_TYPE>")
 
-        # Name-ág
+        # Name-subtree
         nname = HeaderCompletionModel._add_node(G, f_id, "NameContext")
         nnon = HeaderCompletionModel._add_node(G, nname, "NonTypeNameContext")
         ntoi = HeaderCompletionModel._add_node(G, nnon, "Type_or_idContext")
@@ -425,6 +600,17 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
     @staticmethod
     def _find_header_by_name(G: nx.DiGraph, header_name: str) -> List[int]:
+        """
+        Locate headers whose subtree contains a terminal with the given name.
+
+        Args:
+            G: AST graph.
+            header_name: The name token to search for.
+
+        Returns:
+            List of header node ids matching the name; can be empty or contain
+            multiple candidates.
+        """
         out: List[int] = []
         for h in HeaderCompletionModel._header_nodes(G):
             found = False
@@ -448,12 +634,25 @@ class HeaderCompletionModel(AbstractGraphLearner):
     def complete_graph(self, graph_path: str,
                        additions: Dict[Union[int, str], List[Dict[str, str]]],
                        output_path: Optional[str] = None) -> str:
-        """Gráf kiegészítése a megadott specifikáció szerint.
+        """
+        Insert fields into one or more headers and write the completed graph.
 
-        `additions` kulcsa lehet header **név** (str) vagy **node_id** (int).
-        Értéke: list of {"type": str, "name": str}.
-        Ha a header név több headerre illeszkedik, a modell pontoz és a legjobb
-        headerbe szúrunk.
+        Headers can be addressed either by node id (int) or by header name (str).
+        When addressed by name:
+          * If no exact-name header exists, the model scores all headers with
+            :meth:`score_headers` and picks the best.
+          * If multiple name matches exist, the conditional head disambiguates
+            by choosing the highest-scoring candidate among the matches.
+
+        Args:
+            graph_path: Input graph JSON path.
+            additions: Mapping from header id or name to a list of field dicts
+                (each dict may contain keys ``"type"`` and ``"name"``).
+            output_path: Optional explicit output path. If ``None``, a
+                ``.completed.json`` sibling is created.
+
+        Returns:
+            The output path written by :meth:`dump_graph_json`.
         """
         G = self._load_graph_from_json(graph_path)
 
@@ -466,7 +665,6 @@ class HeaderCompletionModel(AbstractGraphLearner):
             else:
                 by_name.append((str(key), specs))
 
-        # 2) Név szerinti kiválasztás pontozással (ha több jelölt van)
         for name, specs in by_name:
             cand = self._find_header_by_name(G, name)
             if not cand:
@@ -498,7 +696,6 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 if best is not None:
                     by_id.setdefault(best, []).extend(specs)
 
-        # 3) Beszúrás
         for hid, specs in by_id.items():
             if hid not in G:
                 continue
@@ -506,17 +703,51 @@ class HeaderCompletionModel(AbstractGraphLearner):
             for sp in specs:
                 self._build_field_subtree(G, list_id, sp)
 
+            self._relocate_header_closing_brace(G, hid)
+
         out = output_path or (os.path.splitext(graph_path)[0] + ".completed.json")
         return self.dump_graph_json(G, out)
 
-    # ----------------------------
-    # Mentés/Betöltés
-    # ----------------------------
+    @staticmethod
+    def _relocate_header_closing_brace(G: nx.DiGraph, header_id: int) -> None:
+        """
+        Remove all closing-brace ('}') TerminalNodeImpl under the given header and
+        re-create a single '}' as a **direct child** of the header, appended last.
+        This guarantees that:
+          - the '}' comes after the StructFieldListContext in successor iteration
+          - the new node gets a fresh, larger nodeId (due to _add_terminal).
+        """
+        direct_closers = [c for c in G.successors(header_id)
+                          if G.nodes[c].get('class_') == 'TerminalNodeImpl' and G.nodes[c].get('value') == '\\}']
+        if direct_closers:
+            closers = direct_closers
+        else:
+            closers = [d for d in HeaderCompletionModel._descendants(G, header_id)
+                       if G.nodes[d].get('class_') == 'TerminalNodeImpl' and G.nodes[d].get('value') == '}']
+
+        for c in closers:
+            if c in G:
+                G.remove_node(c)
+
+        HeaderCompletionModel._add_terminal(G, header_id, '}')
+
     def save_model(self, path: str) -> None:
+        """
+        Persist model weights and (optionally) encoders to disk.
+
+        The method tries to serialize scikit-learn ``LabelEncoder`` classes if
+        present; if not, it still stores the model state dict for later loading.
+
+        Args:
+            path: Directory to create or reuse for the checkpoint.
+
+        Returns:
+            None. Prints a confirmation with the target path.
+        """
         os.makedirs(path, exist_ok=True)
         enc_ser = {}
         try:
-            from sklearn.preprocessing import LabelEncoder  # type: ignore
+            from sklearn.preprocessing import LabelEncoder
             if getattr(self, "class_encoder", None) is not None and isinstance(self.class_encoder, LabelEncoder):
                 enc_ser["class_encoder_classes"] = self.class_encoder.classes_.tolist()
             if getattr(self, "value_encoder", None) is not None and isinstance(self.value_encoder, LabelEncoder):
@@ -526,8 +757,6 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
         torch.save({
             "model_state": self.state_dict(),
-            # Visszafelé kompatibilitás: a nyers objektumokat is eltesszük,
-            # de ezek 2.6 alatt csak allowlist-tel fognak betölteni.
             "class_encoder": getattr(self, "class_encoder", None),
             "value_encoder": getattr(self, "value_encoder", None),
             "encoders_serialized": enc_ser,
@@ -535,14 +764,25 @@ class HeaderCompletionModel(AbstractGraphLearner):
         print(f"HeaderCompletionModel saved → {path}")
 
     def load_model(self, path: str) -> None:
-        ckpt_path = os.path.join(path, "header_completion_model.pt")
+        """
+        Load model weights and, if available, serialized encoders from disk.
 
-        # 1) Próbáljuk safe allowlist-tel (PyTorch 2.6 default: weights_only=True)
+        The loader is tolerant to different PyTorch versions and attempts to
+        register safe globals for scikit-learn encoders, reconstructing them
+        when serialized class lists are present.
+
+        Args:
+            path: Directory containing ``header_completion_model.pt``.
+
+        Returns:
+            None. Moves the model to ``self.device`` and prints a confirmation.
+        """
+        ckpt_path = os.path.join(path, "header_completion_model.pt")
         try:
             try:
-                from torch.serialization import add_safe_globals  # PyTorch 2.6+
+                from torch.serialization import add_safe_globals
                 try:
-                    from sklearn.preprocessing import LabelEncoder  # type: ignore
+                    from sklearn.preprocessing import LabelEncoder
                     add_safe_globals([LabelEncoder])
                 except Exception:
                     pass
@@ -550,20 +790,17 @@ class HeaderCompletionModel(AbstractGraphLearner):
                 pass
             ckpt = torch.load(ckpt_path, map_location=self.device)
         except Exception:
-            # 2) Fallback: weights_only=False (CSAK megbízható checkpointnál!)
             ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
 
-        # Súlyok
         if "model_state" in ckpt:
             self.load_state_dict(ckpt["model_state"])
         else:
             self.load_state_dict(ckpt)
 
-        # Encoderek visszaépítése (serialized -> LabelEncoder)
         enc_ser = ckpt.get("encoders_serialized") or {}
         if enc_ser:
             try:
-                from sklearn.preprocessing import LabelEncoder  # type: ignore
+                from sklearn.preprocessing import LabelEncoder
                 import numpy as np
                 if enc_ser.get("class_encoder_classes") is not None:
                     le_c = LabelEncoder()
@@ -576,7 +813,6 @@ class HeaderCompletionModel(AbstractGraphLearner):
             except Exception:
                 pass
 
-        # Ha nincs serialized és az allowlist miatt sikerült a nyers objektumot betölteni, azt használjuk
         if getattr(self, "class_encoder", None) is None and ckpt.get("class_encoder") is not None:
             self.class_encoder = ckpt.get("class_encoder")
         if getattr(self, "value_encoder", None) is None and ckpt.get("value_encoder") is not None:
@@ -584,3 +820,54 @@ class HeaderCompletionModel(AbstractGraphLearner):
 
         self.to(self.device)
         print(f"HeaderCompletionModel loaded ← {path}")
+
+    def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
+        """
+        (Placeholder) Produce supervision labels for nodes of a training graph.
+
+        Implementations should map graph nodes to a tensor suitable for the task,
+        e.g., a float tensor of shape ``[num_nodes]`` with binary labels indicating
+        whether a node is a positive header target.
+
+        Args:
+            graph: AST graph used to compute labels.
+
+        Returns:
+            A ``torch.Tensor`` of labels aligned with the model's node ordering.
+        """
+        pass
+
+    def _train_epoch(self, dataset: List[Data], epoch: int) -> None:
+        """
+        (Placeholder) Run one training epoch over a dataset of PyG ``Data`` items.
+
+        Implementations typically:
+          * encode node features,
+          * run the GNN,
+          * compute task-specific losses, and
+          * step the optimizer.
+
+        Args:
+            dataset: List of PyG graphs prepared by ``_graph_to_pyg``.
+            epoch: Current epoch index (0-based or 1-based, implementation-defined).
+
+        Returns:
+            None.
+        """
+        pass
+
+    def predict_subgraph(self, graph_path: str, node_embeddings: torch.Tensor) -> List[int]:
+        """
+        (Placeholder) Predict a set of node ids forming a task-specific subgraph.
+
+        This helper is intended for scenarios where the GNN embeddings are already
+        available (e.g., cached) and only post-processing/selection is required.
+
+        Args:
+            graph_path: Path to the input JSON graph (for node id mapping).
+            node_embeddings: Tensor of node embeddings aligned with the graph.
+
+        Returns:
+            A list of selected node ids (possibly empty).
+        """
+        pass
