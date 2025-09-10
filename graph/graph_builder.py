@@ -236,3 +236,42 @@ class GraphBuilder:
             if attr.get('class_') == class_value:
                 node_ids.append(node)
         return node_ids
+
+    def clone_without_subgraph_by_node_id(self, node_id_value: int, keep_root: bool = False) -> nx.DiGraph:
+        """
+        Return a new graph cloned from the current one with the subgraph reachable from the node
+        that's 'nodeId' attribute equals `node_id_value` removed.
+
+        The traversal follows outgoing (directed) edges, i.e., all descendants of the root node.
+        The original graph remains unchanged.
+
+        Args:
+            node_id_value (int): The value of the 'nodeId' attribute of the root node to start from.
+            keep_root (bool): If True, keep the root node and remove only its descendants.
+                              If False, remove the root node as well. Defaults to False.
+
+        Returns:
+            nx.DiGraph: A new directed graph with the specified reachable subgraph removed.
+
+        Raises:
+            ValueError: If no node exists with the provided 'nodeId' value.
+        """
+        # Locate the actual node key whose 'nodeId' attribute matches the given value.
+        for n, attrs in self.graph.nodes(data=True):
+            if attrs.get('nodeId') == node_id_value:
+                start_node = n
+                break
+        else:
+            raise ValueError(f"No node found with nodeId {node_id_value}")
+
+        # Collect nodes to remove: the root + all its descendants via outgoing edges.
+        # Using networkx.descendants ensures we follow the directed structure.
+        nodes_to_remove = {start_node} | nx.descendants(self.graph, start_node)
+
+        if keep_root:
+            nodes_to_remove.discard(start_node)
+
+        # Clone and remove on the clone.
+        new_graph = self.graph.copy()
+        new_graph.remove_nodes_from(nodes_to_remove)
+        return new_graph
