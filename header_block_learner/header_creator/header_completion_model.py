@@ -579,7 +579,37 @@ class HeaderCompletionModel(AbstractGraphLearner):
         Returns:
             The node id of the created ``StructFieldContext``.
         """
-        f_id = HeaderCompletionModel._add_node(G, list_id, "StructFieldContext")
+        cur = list_id
+        visited = set()
+        while True:
+            if cur in visited:
+                # Safety against accidental cycles
+                break
+            visited.add(cur)
+
+            children = list(G.successors(cur))
+            if not children:
+                # Found empty tail
+                break
+
+            # Partition by class
+            field_children = [c for c in children if G.nodes[c].get("class_") == "StructFieldContext"]
+            list_children = [c for c in children if G.nodes[c].get("class_") == "StructFieldListContext"]
+
+            if list_children:
+                # Follow the next-list (prefer smallest id for determinism)
+                cur = sorted(list_children, key=int)[0]
+                continue
+            elif field_children and not list_children:
+                # Legacy/partial node: has a field but no "rest" → create it
+                cur = HeaderCompletionModel._add_node(G, cur, "StructFieldListContext")
+                break
+            else:
+                # Unexpected shape → treat as tail
+                break
+
+        # At tail: add (StructFieldContext, StructFieldListContext)
+        f_id = HeaderCompletionModel._add_node(G, cur, "StructFieldContext")
 
         # Type-subtree
         tref = HeaderCompletionModel._add_node(G, f_id, "TypeRefContext")
@@ -594,8 +624,12 @@ class HeaderCompletionModel(AbstractGraphLearner):
         ntoi = HeaderCompletionModel._add_node(G, nnon, "Type_or_idContext")
         HeaderCompletionModel._add_terminal(G, ntoi, spec.name or "<UNK_NAME>")
 
-        # ;
+        # Terminal ';'
         HeaderCompletionModel._add_terminal(G, f_id, ";")
+
+        # Chain extension: empty list after the field
+        HeaderCompletionModel._add_node(G, cur, "StructFieldListContext")
+
         return f_id
 
     @staticmethod
@@ -718,12 +752,14 @@ class HeaderCompletionModel(AbstractGraphLearner):
           - the new node gets a fresh, larger nodeId (due to _add_terminal).
         """
         direct_closers = [c for c in G.successors(header_id)
-                          if G.nodes[c].get('class_') == 'TerminalNodeImpl' and G.nodes[c].get('value') == '\\}']
+                          if G.nodes[c].get('class_') == 'TerminalNodeImpl' and (
+                                      G.nodes[c].get('value') == '\\}' or G.nodes[c].get('value') == '}')]
         if direct_closers:
             closers = direct_closers
         else:
             closers = [d for d in HeaderCompletionModel._descendants(G, header_id)
-                       if G.nodes[d].get('class_') == 'TerminalNodeImpl' and G.nodes[d].get('value') == '}']
+                       if G.nodes[d].get('class_') == 'TerminalNodeImpl' and (
+                                   G.nodes[d].get('value') == '\\}' or G.nodes[d].get('value') == '}')]
 
         for c in closers:
             if c in G:
