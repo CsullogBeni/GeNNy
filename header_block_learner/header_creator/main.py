@@ -11,18 +11,22 @@ Configuration
 1) Built-in (below):
    - DEFAULT_ADDITIONS: base additions applied to every file.
    - PER_FILE_ADDITIONS: per-file/per-glob overrides/additions.
-   - OUTPUT_SUFFIX, OVERWRITE: output naming/overwrite rules.
+   - VALIDATION_OUT_DIR, RECURSIVE: output directory & directory traversal.
+   - OUTPUT_SUFFIX, OVERWRITE: output naming/overwrite rules (used only if no output_dir is set).
 
-2) External JSON (optional): VALIDATION_CONFIG_PATH
+2) External JSON (optional): VALIDATION_CONFIG_PATH (validation/config.json)
    Schema:
    {
      "global_additions": { "my_header": [{"type": "macAddr_t", "name": "dst"}], "3273": [{"type": "u16", "name": "len"}] },
      "per_file": {
        "file_a_reduced.json": {"my_header": [{"type": "macAddr_t", "name": "src"}]},
-       "*_reduced.json": {"ipv4_t": [{"type": "bit<8>", "name": "ttl"}]}
+       "*_reduced.json": {"ipv4_t": [{"type": "bit<8>", "name": "ttl"}]},
+       "subdir/only_this.json": {"ethernet_t": [{"type": "macAddr_t", "name": "destinationAddress"}]}
      },
-     "output_suffix": ".completed.json",
-     "overwrite": false
+     "output_dir": "validation_out",        // OPTIONAL: takes precedence over overwrite/suffix
+     "output_suffix": ".completed.json",    // used only if output_dir is not set
+     "overwrite": false,                    // used only if output_dir is not set
+     "recursive": true                      // OPTIONAL: recurse into subdirectories
    }
    Note: numeric keys (node_id) must be provided as strings in JSON; the script converts them to ints.
 """
@@ -48,6 +52,10 @@ MODEL_DIR: str = "models"
 
 # Validation / Inference
 VALIDATION_DIR: str = "validation"
+VALIDATION_OUT_DIR: Optional[str] = "validation_out"  # if set, write outputs here mirroring structure
+RECURSIVE: bool = True  # traverse subdirectories under VALIDATION_DIR
+
+# If VALIDATION_OUT_DIR is None, we fall back to suffix/overwrite behavior:
 OUTPUT_SUFFIX: str = ".completed.json"
 OVERWRITE: bool = False
 
@@ -57,28 +65,89 @@ DEFAULT_ADDITIONS: Dict[Union[int, str], List[Dict[str, Optional[str]]]] = {
     # "my_header": [{"type": "macAddr_t", "name": "destinationAddress"}],
 }
 
-PER_FILE_ADDITIONS: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]] = {
-    # "*_reduced.json": {"my_header": [{"type": "macAddr_t", "name": "dstAddr"}]},
-    # "example_reduced.json": { 3273: [{"type": "u16", "name": "len"}] },
-    "*.json": {"my_header": [{"type": "macAddr_t", "name": "destinationAddress"}]},
-}
+PER_FILE_ADDITIONS: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]] = \
+    {
+        # "exact_name.json": {"my_header": [{"type": "macAddr_t", "name": "dstAddr"}]},
+        # "subdir/*.json": {"ipv4_t": [{"type": "bit<8>", "name": "ttl"}]},
+        "*basic_p4.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*basic_p4_with_new_header_validation_0.json": {"my_header": [
+            {"type": "macAddr_t", "name": "destinationAddress"},
+            {"type": "macAddr_t", "name": "sourceAddress"}
+        ]},
+        "*basic_p4_2.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*basic_p4_4.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*basic_p4_8.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*basic_p4_16.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*ex1.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+        "*fabric.json": {
+            "ethernet_t": [
+                {"type": "macAddr_t", "name": "destinationAddress"},
+                {"type": "macAddr_t", "name": "sourceAddress"}
+            ],
+            "ipv4_t": [
+                {"type": "ip4Addr_t", "name": "destinationAddress"},
+                {"type": "ip4Addr_t", "name": "sourceAddress"}
+            ]
+        },
+    }
 
 
 def _normalize_additions_keys(additions: Dict[Union[int, str], List[Dict[str, Optional[str]]]]) -> Dict[
     Union[int, str], List[Dict[str, Optional[str]]]]:
-    """
-    Normalize the keys of an additions mapping so numeric strings become ints.
-
-    This allows JSON configurations to specify header node ids as strings while
-    the in-memory representation uses integers where appropriate.
-
-    Args:
-        additions: Mapping from header identifier (int node id or header name)
-            to a list of field dicts (each with optional "type" and "name").
-
-    Returns:
-        A new mapping with keys converted: numeric strings → int, others → str.
-    """
     out: Dict[Union[int, str], List[Dict[str, Optional[str]]]] = {}
     for k, v in (additions or {}).items():
         kk: Union[int, str]
@@ -92,24 +161,6 @@ def _normalize_additions_keys(additions: Dict[Union[int, str], List[Dict[str, Op
 
 
 def load_external_validation_config(path: str) -> Dict[str, object]:
-    """
-    Load optional external validation configuration from JSON.
-
-    The file may define global additions, per-file additions, output suffix,
-    and overwrite behavior. Numeric header ids must be strings in JSON and
-    are normalized to ints.
-
-    Args:
-        path: Filesystem path to the JSON configuration.
-
-    Returns:
-        A dictionary with any of the keys:
-          - "global_additions": Dict[Union[int, str], List[Dict[str, Optional[str]]]]
-          - "per_file": Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]]
-          - "output_suffix": str
-          - "overwrite": bool
-        Missing file results in an empty dict.
-    """
     if not os.path.isfile(path):
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -126,25 +177,16 @@ def load_external_validation_config(path: str) -> Dict[str, object]:
         out["output_suffix"] = str(cfg.get("output_suffix"))
     if "overwrite" in cfg:
         out["overwrite"] = bool(cfg.get("overwrite"))
+    if "output_dir" in cfg:
+        out["output_dir"] = str(cfg.get("output_dir")) if cfg.get("output_dir") else None
+    if "recursive" in cfg:
+        out["recursive"] = bool(cfg.get("recursive"))
     return out
 
 
 def merge_additions(base: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                     extra: Dict[Union[int, str], List[Dict[str, Optional[str]]]]) -> Dict[
     Union[int, str], List[Dict[str, Optional[str]]]]:
-    """
-    Merge two additions dictionaries by concatenating field lists per key.
-
-    Later entries do not replace earlier ones; they are appended, allowing
-    the same header to receive multiple field specs.
-
-    Args:
-        base: The starting additions mapping.
-        extra: The additions to merge into ``base``.
-
-    Returns:
-        A new mapping with concatenated lists per header key.
-    """
     merged: Dict[Union[int, str], List[Dict[str, Optional[str]]]] = {}
     for src in (base or {}), (extra or {}):
         for k, v in src.items():
@@ -156,20 +198,6 @@ def additions_for_file(rel_path: str,
                        global_adds: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                        per_file: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]]) -> Dict[
     Union[int, str], List[Dict[str, Optional[str]]]]:
-    """
-    Compute the effective additions for a given file, combining global and per-file configs.
-
-    Per-file entries are matched using Unix shell-style glob patterns. Multiple
-    matching patterns are merged cumulatively.
-
-    Args:
-        rel_path: The file name (or path relative to the validation root).
-        global_adds: Additions applied to every file.
-        per_file: Mapping of glob pattern → additions for matching files.
-
-    Returns:
-        A normalized additions mapping for the specific file.
-    """
     adds = dict(global_adds or {})
     rel_norm = rel_path.replace("\\", "/")
     for patt, extra in (per_file or {}).items():
@@ -178,47 +206,49 @@ def additions_for_file(rel_path: str,
     return _normalize_additions_keys(adds)
 
 
+def iter_validation_files(root: Path, recursive: bool) -> List[Path]:
+    pattern = "**/*.json" if recursive else "*.json"
+    return sorted([p for p in root.glob(pattern) if p.is_file()])
+
+
 def complete_directory(model: HeaderCompletionModel,
                        validation_dir: str,
+                       output_dir: Optional[str],
                        output_suffix: str,
                        overwrite: bool,
+                       recursive: bool,
                        global_adds: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                        per_file_adds: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]]) -> None:
-    """
-    Run header completion over all JSON graphs in a directory.
-
-    For each ``*.json`` file found, the function determines the effective
-    additions (global + per-file), invokes :meth:`HeaderCompletionModel.complete_graph`,
-    and writes the output either in-place (if ``overwrite``) or to a sibling
-    file with ``output_suffix``.
-
-    Args:
-        model: An initialized and loaded ``HeaderCompletionModel`` instance.
-        validation_dir: Directory to scan for ``*.json`` files.
-        output_suffix: Suffix appended to output file names when not overwriting.
-        overwrite: If True, write results to the same file path.
-        global_adds: Base additions applied to every file.
-        per_file_adds: Per-glob additions that may override/extend the base.
-    """
     root = Path(validation_dir)
     if not root.exists() or not root.is_dir():
         print(f"[Validation] Directory not found: {validation_dir}")
         return
 
-    files = sorted([p for p in root.glob("*.json") if p.is_file()])
+    files = iter_validation_files(root, recursive=recursive)
     if not files:
         print(f"[Validation] No .json files in: {validation_dir}")
         return
 
-    print(f"[Validation] Found {len(files)} json file(s) in {validation_dir}")
+    if output_dir:
+        out_root = Path(output_dir)
+        out_root.mkdir(parents=True, exist_ok=True)
+        print(f"[Validation] Output dir: {out_root.resolve()} (mirroring structure)")
+
+    print(f"[Validation] Found {len(files)} json file(s) in {validation_dir} (recursive={recursive})")
 
     for p in files:
-        rel = p.name
+        rel = str(p.relative_to(root)).replace("\\", "/")
         adds = additions_for_file(rel, global_adds, per_file_adds)
         if not adds:
             print(f"  - {rel}: no additions configured → SKIP")
             continue
-        out_path = p if overwrite else p.with_name(p.stem + output_suffix)
+
+        if output_dir:
+            out_path = Path(output_dir) / rel
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            out_path = p if overwrite else p.with_name(p.stem + output_suffix)
+
         try:
             written = model.complete_graph(str(p), adds, output_path=str(out_path))
             print(f"  - {rel} → OK  (written: {written})")
@@ -227,22 +257,6 @@ def complete_directory(model: HeaderCompletionModel,
 
 
 def run() -> None:
-    """
-    Entry point for training or validation-time completion.
-
-    Behavior is controlled by module-level configuration:
-      * If ``TRAIN_MODE`` is True:
-          - Train on pairs in ``PAIRS_DIR`` for ``EPOCHS`` epochs,
-            then save to ``MODEL_DIR``.
-      * If ``TRAIN_MODE`` is False:
-          - Load a model from ``MODEL_DIR``.
-          - Read optional external config from ``VALIDATION_CONFIG_PATH``.
-          - Merge built-in and external additions.
-          - Run completion over all ``*.json`` in ``VALIDATION_DIR``.
-
-    Returns:
-        None. Prints progress and results to stdout.
-    """
     device = DEVICE
     model = HeaderCompletionModel(device=device)
 
@@ -263,6 +277,9 @@ def run() -> None:
     global_adds = _normalize_additions_keys(DEFAULT_ADDITIONS)
     per_file_adds = dict(PER_FILE_ADDITIONS)
 
+    output_dir = VALIDATION_OUT_DIR
+    recursive = RECURSIVE
+
     if ext:
         if ext.get("global_additions"):
             global_adds = merge_additions(global_adds, ext["global_additions"])
@@ -272,18 +289,24 @@ def run() -> None:
                     per_file_adds[patt] = merge_additions(per_file_adds[patt], adds)
                 else:
                     per_file_adds[patt] = adds
+        if ext.get("output_dir") is not None:
+            output_dir = ext["output_dir"]
         if ext.get("output_suffix"):
             global OUTPUT_SUFFIX
             OUTPUT_SUFFIX = ext["output_suffix"]
         if "overwrite" in ext:
             global OVERWRITE
             OVERWRITE = bool(ext["overwrite"])
+        if "recursive" in ext:
+            recursive = bool(ext["recursive"])
 
     complete_directory(
         model=model,
         validation_dir=VALIDATION_DIR,
+        output_dir=output_dir,
         output_suffix=OUTPUT_SUFFIX,
         overwrite=OVERWRITE,
+        recursive=recursive,
         global_adds=global_adds,
         per_file_adds=per_file_adds,
     )
