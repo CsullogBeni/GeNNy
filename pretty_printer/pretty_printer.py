@@ -51,3 +51,14 @@ class PrettyPrinter:
                     self._traverse(child)
             except Exception as e:
                 print(e)
+
+    def save_script(self, path: str):
+        """
+        Traverses the graph and saves the script to the given path.
+
+        Args:
+            path (str): The path to save the script to.
+        """
+        script = self.get_script
+        with open(path, 'w') as f:
+            f.write(script)
