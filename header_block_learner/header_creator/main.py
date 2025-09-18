@@ -147,7 +147,22 @@ PER_FILE_ADDITIONS: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]
 
 
 def _normalize_additions_keys(additions: Dict[Union[int, str], List[Dict[str, Optional[str]]]]) -> Dict[
-    Union[int, str], List[Dict[str, Optional[str]]]]:
+                              Union[int, str], List[Dict[str, Optional[str]]]]:
+    """
+    Normalize the keys of an additions mapping so numeric node IDs become ``int``.
+
+    The external configuration may encode dictionary keys as strings. This helper
+    converts any digit-only string keys (e.g., ``"123"``) to integers so that
+    the downstream code can treat header identifiers uniformly.
+
+    Args:
+        additions: Mapping from header identifier (name or node_id) to a list of
+        field-spec dictionaries (each may contain ``"type"`` and ``"name"``).
+
+    Returns:
+        A new mapping whose keys are either ``int`` (for numeric IDs) or ``str``
+        (for header names), preserving the original values.
+    """
     out: Dict[Union[int, str], List[Dict[str, Optional[str]]]] = {}
     for k, v in (additions or {}).items():
         kk: Union[int, str]
@@ -161,6 +176,21 @@ def _normalize_additions_keys(additions: Dict[Union[int, str], List[Dict[str, Op
 
 
 def load_external_validation_config(path: str) -> Dict[str, object]:
+    """
+    Load an optional validation-time configuration JSON.
+
+    The file may specify global/per-file additions as well as output handling
+    options. Numeric keys under ``global_additions`` or ``per_file`` are
+    normalized to integers for internal use (see :func:`_normalize_additions_keys`).
+
+    Args:
+        path: Filesystem path to ``validation/config.json``.
+
+    Returns:
+        A dictionary with any of the following keys when present in the file:
+        ``global_additions``, ``per_file``, ``output_suffix``, ``overwrite``,
+        ``output_dir``, and ``recursive``. Missing or absent file results in ``{}``.
+    """
     if not os.path.isfile(path):
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -186,7 +216,25 @@ def load_external_validation_config(path: str) -> Dict[str, object]:
 
 def merge_additions(base: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                     extra: Dict[Union[int, str], List[Dict[str, Optional[str]]]]) -> Dict[
-    Union[int, str], List[Dict[str, Optional[str]]]]:
+                    Union[int, str], List[Dict[str, Optional[str]]]]:
+    """
+    Merge two additions mappings by concatenating field-spec lists per key.
+
+
+    This performs a shallow union where values from ``extra`` extend (not
+    overwrite) the lists from ``base`` for matching header identifiers.
+
+
+    Args:
+        base: Base mapping of additions.
+        extra: Additional mapping to merge in.
+
+
+    Returns:
+        A new mapping where for each key ``k`` the corresponding value is the
+        concatenation of ``base[k]`` and ``extra[k]`` (missing lists are treated
+        as empty).
+    """
     merged: Dict[Union[int, str], List[Dict[str, Optional[str]]]] = {}
     for src in (base or {}), (extra or {}):
         for k, v in src.items():
@@ -197,7 +245,25 @@ def merge_additions(base: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
 def additions_for_file(rel_path: str,
                        global_adds: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                        per_file: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]]) -> Dict[
-    Union[int, str], List[Dict[str, Optional[str]]]]:
+                       Union[int, str], List[Dict[str, Optional[str]]]]:
+    """
+    Compute the effective additions for a given file path.
+
+    The function starts from ``global_adds`` and then applies any per-file rules
+    whose glob pattern matches the file's **relative** path under
+    ``VALIDATION_DIR``. Matching is done with :func:`fnmatch.fnmatch` after
+    normalizing path separators to ``/``.
+
+    Args:
+        rel_path: Path of the file relative to ``VALIDATION_DIR``.
+        global_adds: Mapping of additions applied to all files.
+        per_file: Mapping from glob pattern → additions mapping to apply.
+
+    Returns:
+        A normalized mapping (see :func:`_normalize_additions_keys`) of header
+        identifiers to lists of field-spec dictionaries. May be empty if no
+        additions are configured for the file.
+    """
     adds = dict(global_adds or {})
     rel_norm = rel_path.replace("\\", "/")
     for patt, extra in (per_file or {}).items():
@@ -207,6 +273,17 @@ def additions_for_file(rel_path: str,
 
 
 def iter_validation_files(root: Path, recursive: bool) -> List[Path]:
+    """
+    Enumerate candidate ``.json`` files under a root directory.
+
+    Args:
+        root: Root directory to search (typically ``Path(VALIDATION_DIR)``).
+        recursive: If ``True``, search subdirectories as well; otherwise only the
+        top-level directory is scanned.
+
+    Returns:
+        A sorted list of paths for files ending in ``.json``.
+    """
     pattern = "**/*.json" if recursive else "*.json"
     return sorted([p for p in root.glob(pattern) if p.is_file()])
 
@@ -219,6 +296,27 @@ def complete_directory(model: HeaderCompletionModel,
                        recursive: bool,
                        global_adds: Dict[Union[int, str], List[Dict[str, Optional[str]]]],
                        per_file_adds: Dict[str, Dict[Union[int, str], List[Dict[str, Optional[str]]]]]) -> None:
+    """
+    Run graph completion for all JSON files in a directory tree.
+
+    Depending on ``output_dir`` and the ``overwrite``/``output_suffix`` flags,
+    writes results either to a mirrored tree under ``output_dir`` or alongside
+    the source files.
+
+    Args:
+        model: Initialized and (for inference) **loaded** :class:`HeaderCompletionModel`.
+        validation_dir: Directory containing input JSON graphs.
+        output_dir: If provided, base directory for outputs (directory structure
+        mirrors ``validation_dir``). If ``None``, outputs are written next to
+        inputs using ``output_suffix`` unless ``overwrite`` is ``True``.
+        output_suffix: File suffix to use when ``output_dir`` is ``None`` and
+        ``overwrite`` is ``False``.
+        overwrite: If ``True`` and ``output_dir`` is ``None``, write directly to
+        the input file path.
+        recursive: Whether to traverse subdirectories under ``validation_dir``.
+        global_adds: Additions applied to every file.
+        per_file_adds: Per-glob additions to merge on top of ``global_adds``.
+    """
     root = Path(validation_dir)
     if not root.exists() or not root.is_dir():
         print(f"[Validation] Directory not found: {validation_dir}")
@@ -257,6 +355,15 @@ def complete_directory(model: HeaderCompletionModel,
 
 
 def run() -> None:
+    """
+    Entry point for training or validation/inference.
+
+    Behavior is controlled by the module-level configuration flags. In training
+    mode, the model is trained on (full, reduced) graph pairs found under
+    ``PAIRS_DIR`` and saved to ``MODEL_DIR``. In validation/inference mode, an
+    existing model is loaded from ``MODEL_DIR`` and applied to all JSON graphs in
+    ``VALIDATION_DIR`` according to any configured additions.
+    """
     device = DEVICE
     model = HeaderCompletionModel(device=device)
 
