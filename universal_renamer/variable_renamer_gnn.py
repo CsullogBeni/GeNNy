@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
     folder = "data"
     # Uncomment below to train on all graphs in the folder
-
-    '''graph_files = [f for f in os.listdir(folder) if f.endswith(".json")]
+    '''
+    graph_files = [f for f in os.listdir(folder) if f.endswith(".json")]
 
     print(f"\nFound {len(graph_files)} graph files in '{folder}'.")
 
