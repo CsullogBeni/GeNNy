@@ -7,12 +7,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
-from torch_geometric.data import Data
 
 from graph_learner.abstract_graph_learner import AbstractGraphLearner
 
 
 class EmptyElseDetector(AbstractGraphLearner):
+    """
+    Classifies empty else blocks in P4 ASTs for better code optimization while identifying dead end code during
+    compilation.
+    Uses graph neural networks to learn node embeddings and classifies nodes as empty else blocks. Inherit from
+    AbstractGraphLearner that implements the basic training loop and graph processing utilities.
+
+    Args:
+        hidden_dim (int, optional): Hidden dimension of the GNN. Default is 64.
+        device (str, optional): Device to run the model on. Default is "cpu".
+    """
+
     def __init__(self, hidden_dim: int = 64, device: str = "cpu"):
         super().__init__(hidden_dim=hidden_dim, device=device)
         self.head = nn.Linear(self.hidden_dim, 1)
@@ -20,6 +30,16 @@ class EmptyElseDetector(AbstractGraphLearner):
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
+        """
+        Labels the root nodes of empty else blocks as 1.0 and the rest as 0.0.
+
+        Args:
+             graph (nx.DiGraph): Input directed graph with node attributes.
+
+        Returns:
+            Returns a tensor of shape `[num_nodes]` with 1.0 or 0.0 labels. 1.0 indicates the node is a root of an
+            empty else block, and 0.0 means it is not.
+         """
         labels = torch.zeros(len(graph.nodes), dtype=torch.float32, device=self.device)
         id_to_index = {nid: i for i, nid in enumerate(graph.nodes)}
 
@@ -138,9 +158,6 @@ class EmptyElseDetector(AbstractGraphLearner):
 
         Args:
             path (str): Directory path where the model should be saved.
-
-        Returns:
-            None
         """
         os.makedirs(path, exist_ok=True)
         torch.save({

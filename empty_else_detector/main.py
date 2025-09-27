@@ -24,6 +24,15 @@ def detect_device() -> str:
 
 def train_and_save_models(data_dir: str, output_dir: str,
                           epochs: int = 20, hidden_dim: int = 64):
+    """
+    Calls the proper training function for EmptyElseDetector with the given parameters.
+
+    Args:
+         data_dir: Path to the directory containing `.json` training files with P4 ASTs.
+         output_dir: Path to the directory where the model will be saved.
+         epochs: Number of training iterations (default: 20).
+         hidden_dim: Dimension of hidden layers in both classifiers (default: 64).
+    """
     json_files: List[str] = [
         os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".json")
     ]
@@ -37,10 +46,17 @@ def train_and_save_models(data_dir: str, output_dir: str,
 
 
 def run_predictions(graph_path: str, device: str = "cpu"):
+    """
+    Run prediction on a graph or a directory of graphs. Model searches for empty else blocks. Searcher also
+    validates the detector.
+
+    Args:
+        graph_path (str): Path to a JSON file containing a graph or a directory of graphs.
+        device (str, optional): Device to run the model on, e.g. `"cpu"` or `"cuda"`. Default is `"cpu"`.
+    """
     import json
-    from empty_else_searcher import load_ast, find_empty_else_blocks  # baseline kereső
+    from empty_else_searcher import load_ast, find_empty_else_blocks
     detector = EmptyElseDetector(device=device)
-    # A modellek és encoderek a projekt gyökeréből töltődnek (ahová mentetted őket)
     detector.load_model(os.path.dirname(__file__))
 
     if os.path.isdir(graph_path):
@@ -48,32 +64,26 @@ def run_predictions(graph_path: str, device: str = "cpu"):
     elif os.path.isfile(graph_path) and graph_path.endswith(".json"):
         files = [graph_path]
     else:
-        print(f"Nincs feldolgozható JSON itt: {graph_path}")
+        print(f"There is no JSON file: {graph_path}")
         return
 
     for fp in sorted(files):
         print(f"\n=== {os.path.basename(fp)} ===")
 
-        # 1) baseline szabályalapú kereső (összehasonlításként)
         try:
             ast = load_ast(Path(fp))
             searcher_empties = find_empty_else_blocks(ast)
-            print(f"[Searcher] üres else ág(ak): {len(searcher_empties)} találat")
+            print(f"[Searcher] empty else block(s): {len(searcher_empties)}")
         except Exception as e:
-            print(f"[Searcher] hiba: {e}")
-            searcher_empties = []
+            print(f"[Searcher] error: {e}")
 
-        # 2) GNN embedding + predikció
         with torch.no_grad():
-            node_emb = detector.encode_graph(fp)  # [N, hidden_dim]
-            pred_idx = detector.predict_subgraph(fp, node_emb)  # [k index]
+            node_emb = detector.encode_graph(fp)
+            pred_idx = detector.predict_subgraph(fp, node_emb)
 
-        # 3) Predikciók visszamappelése a JSON node-okra, hogy olvasható legyen
         with open(fp, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # FONTOS: az AbstractGraphLearner a JSON-ban szereplő node-ok sorrendjét veszi át,
-        # ezért itt ugyanebben a sorrendben indexelünk vissza.  :contentReference[oaicite:3]{index=3}
         nodes_in_order = data.get("nodes", [])
         hits = []
         for i in pred_idx:
@@ -81,7 +91,6 @@ def run_predictions(graph_path: str, device: str = "cpu"):
                 n = nodes_in_order[i]
                 hits.append({
                     "index": i,
-                    # A JSON-okban lehet "id" vagy "nodeId" kulcs — próbáljuk mindkettőt.
                     "id": n.get("id", n.get("nodeId")),
                     "class_": n.get("class_"),
                     "value": n.get("value"),
@@ -100,13 +109,9 @@ def main() -> None:
     Program entry point.
 
     Behavior depends on `TRAIN_MODE`:
-      - If True, trains both models on data from `DATA_DIR` and saves to
-        `MODEL_DIR` for `EPOCHS` epochs.
-      - If False, loads models from `MODEL_DIR` and classifies graphs found at
+      - If True, trains both models on data from `DATA_DIR` for `EPOCHS` epochs.
+      - If False, loads models and classifies graphs found at
         `CLASSIFY_GRAPH_PATH`.
-
-    Returns:
-        None
     """
     device = detect_device()
     print(f"Device: {device.upper()}")
