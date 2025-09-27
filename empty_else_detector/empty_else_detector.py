@@ -1,286 +1,179 @@
-import json
-from pathlib import Path
-from typing import Dict, List
+import os
+import pickle
+from typing import List
+
+import networkx as nx
 import torch
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
-from collections import defaultdict
-from sklearn.preprocessing import LabelEncoder
+import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+import torch_geometric
+from torch_geometric.data import Data
+
+from graph_learner.abstract_graph_learner import AbstractGraphLearner
 
 
-class GCN(torch.nn.Module):
-    """
-    Simple two-layer Graph Convolutional Network (GCN) for binary classification.
+class EmptyElseDetector(AbstractGraphLearner):
+    def __init__(self, hidden_dim: int = 64, device: str = "cpu"):
+        super().__init__(hidden_dim=hidden_dim, device=device)
+        self.head = nn.Linear(self.hidden_dim, 1)
+        self.to(self.device)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-    Parameters:
-        - input_dim (int): Number of input features
-        - hidden_dim (int): Size of the hidden layer (default is 16)
-    """
-    def __init__(self, input_dim, hidden_dim=16):
-        super(GCN, self).__init__()
-        self.conv1 = GCNConv(input_dim, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, 2)
+    def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
+        labels = torch.zeros(len(graph.nodes), dtype=torch.float32, device=self.device)
+        id_to_index = {nid: i for i, nid in enumerate(graph.nodes)}
 
-    def forward(self, data):
+        for node_id in graph.nodes:
+            if graph.nodes[node_id].get("class_") != "ConditionalStatementContext":
+                continue
+            for c1 in graph.successors(node_id):
+                if graph.nodes[c1].get("class_") != "TerminalNodeImpl":
+                    continue
+                if graph.nodes[c1].get("value") != "else":
+                    continue
+                if graph.out_degree(c1) == 0:
+                    labels[id_to_index[c1]] = 1.0
+        return labels
+
+    def fit(self, filepaths: List[str], epochs: int = 20,
+            leaf_phase_epochs: int = 5, prune_step: float = 0.05, prune_max_ratio: float = 0.30):
         """
-        Forward pass on graph data.
+        Train the classifier on a dataset of JSON graphs.
+
+        The training is divided into two phases:
+            - Early epochs use leaf pruning (removing leaves at random).
+            - Later epochs use subtree pruning (removing larger structures).
+
+        Args:
+            filepaths (List[str]): List of paths to JSON graph files.
+            epochs (int, optional): Number of training epochs. Default is 20.
+            leaf_phase_epochs (int, optional): Number of initial epochs
+                with leaf pruning. Default is 5.
+            prune_step (float, optional): Incremental pruning ratio per epoch.
+                Default is 0.05.
+            prune_max_ratio (float, optional): Maximum pruning ratio. Default is 0.30.
         """
-        x, edge_index = data.x.float(), data.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = self.conv2(x, edge_index)
-        return x
+        self.fit_encoders(filepaths)
+        self.train()
 
+        for epoch in range(epochs):
+            ratio = min(prune_step * (epoch + 1), prune_max_ratio)
+            dataset = []
 
-class EmptyElseDetector:
-    """
-    GNN-based detector for empty 'else' branches in P4 AST graphs.
+            for path in filepaths:
+                G = self._load_graph_from_json(path)
+                if epoch < leaf_phase_epochs:
+                    G = self._delete_random_leaves(G, ratio=ratio)
+                else:
+                    G = self._delete_random_subtrees(G, ratio=ratio)
 
-    Loads AST graphs, builds subgraphs, labels them, and trains a GCN model to
-    detect empty 'else' blocks.
+                data = self._graph_to_pyg(G)
+                y = self._get_label_tensor(G)  # [N]
+                data.y = y
+                dataset.append(data)
 
-    Parameters:
-        - data_dir (str): Directory containing AST JSON files
-        - epochs (int): Number of training epochs
-        - lr (float): Learning rate
-    """
-    def __init__(self, data_dir: str, epochs: int = 200, lr: float = 0.01):
-        self.data_dir = Path(data_dir)
-        self.epochs = epochs
-        self.lr = lr
-        self.dataset = [self.build_data(path) for path in self.data_dir.glob("*.json")]
-        self.loader = DataLoader(self.dataset, batch_size=1, shuffle=True)
-        self.input_dim = 2
-        self.model = GCN(input_dim=self.input_dim)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        self.criterion = torch.nn.CrossEntropyLoss()
+            self._train_epoch(dataset, epoch)
 
-    def train(self):
+    def _train_epoch(self, dataset: List[torch_geometric.data.Data], epoch: int):
         """
-        Train the GCN model on the loaded data.
-        """
-        self.model.train()
-        for epoch in range(self.epochs):
-            total_loss = 0
-            for data in self.loader:
-                self.optimizer.zero_grad()
-                out = self.model(data)
-                loss = self.criterion(out[data.train_mask], data.y[data.train_mask])
-                loss.backward()
-                self.optimizer.step()
-                total_loss += loss.item()
-            acc = self.evaluate()
-            print(f"Epoch {epoch:02d}, Loss: {total_loss / len(self.loader):.4f}, Accuracy: {acc:.4f}")
+        Train the model for a single epoch on the provided dataset.
 
-    def evaluate(self):
+        Uses binary cross-entropy loss with a `pos_weight` term to handle
+        class imbalance between positive and negative samples.
+
+        Args:
+            dataset (List[torch_geometric.data.Data]): List of graph data
+                samples, each containing node features, edges, and labels.
+            epoch (int): Current epoch index, used for logging.
+
+        Returns:
+            None
         """
-        Evaluate the model's accuracy on the training data.
+        self.train()
+        total_loss = 0.0
+
+        for data in dataset:
+            data = data.to(self.device)
+            x = self._encode_node_features(data._raw_node_attrs) if hasattr(data, "_raw_node_attrs") else data.x
+
+            emb = self.gnn(x, data.edge_index)
+            logits = self.head(emb).squeeze(-1)
+            pos = data.y.sum().clamp(min=1.0)
+            neg = (data.y.numel() - pos).clamp(min=1.0)
+            pos_weight = (neg / pos)
+            loss = F.binary_cross_entropy_with_logits(logits, data.y, pos_weight=pos_weight)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            total_loss += float(loss.item())
+
+        print(f"Epoch {epoch} | EmptyElseDetector loss: {total_loss:.4f}")
+
+    def predict_subgraph(self, graph_path: str, node_embeddings: torch.Tensor) -> List[int]:
         """
-        self.model.eval()
-        correct = total = 0
+        Predict which nodes in a graph correspond to empty else block.
+
+        Args:
+            graph_path (str): Path to the original graph file (not used
+                directly in prediction but kept for interface compatibility).
+            node_embeddings (torch.Tensor): Node embeddings from the GNN.
+
+        Returns:
+            List[int]: Indices of nodes predicted as header block declarations.
+        """
         with torch.no_grad():
-            for data in self.loader:
-                out = self.model(data)
-                pred = out.argmax(dim=1)
-                correct += int((pred[data.train_mask] == data.y[data.train_mask]).sum())
-                total += int(data.train_mask.sum())
-        return correct / total if total > 0 else 0.0
+            logits = self.head(node_embeddings).squeeze(-1)
+            scores = torch.sigmoid(logits)
+        return [i for i, s in enumerate(scores) if s > 0.5]
 
-    def predict(self):
+    def save_model(self, path: str):
         """
-        Run inference on the dataset and print predictions for 'else' nodes.
-        """
-        self.model.eval()
-        print("\n--- Prediction Results ---")
-        with torch.no_grad():
-            for data in self.dataset:
-                out = self.model(data)
-                probs = F.softmax(out, dim=1)
-                pred = out.argmax(dim=1)
-                for i, is_target in enumerate(data.train_mask):
-                    if is_target:
-                        label = pred[i].item()
-                        confidence = probs[i][label].item()
-                        print(f"{data.file_name}: else node idx {i} => predicted: {label} ({'empty' if label == 1 else 'non-empty'}, confidence={confidence:.2f})")
+        Save the model, optimizer state, and encoders to disk.
 
-    def save_model(self, path: str = "model.pt"):
-        """
-        Save the trained model to a file.
+        Files created:
+            - `empty_else_detector_model.pt`: model and optimizer state dicts.
+            - `empty_else_detector_class_encoder.pkl`: class encoder.
+            - `empty_else_detector_value_encoder.pkl`: value encoder.
 
-        Parameters:
-            - path (str): Path to save the model
+        Args:
+            path (str): Directory path where the model should be saved.
+
+        Returns:
+            None
         """
-        torch.save(self.model.state_dict(), path)
+        os.makedirs(path, exist_ok=True)
+        torch.save({
+            "model_state": self.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+        }, os.path.join(path, "empty_else_detector_model.pt"))
+
+        with open(os.path.join(path, "empty_else_detector_class_encoder.pkl"), "wb") as f:
+            pickle.dump(self.class_encoder, f)
+        with open(os.path.join(path, "empty_else_detector_value_encoder.pkl"), "wb") as f:
+            pickle.dump(self.value_encoder, f)
         print(f"Model saved to {path}")
 
-    def load_model(self, path: str = "model.pt"):
+    def load_model(self, path: str):
         """
-        Load a trained model from a file.
+        Load the model, optimizer state, and encoders from disk.
 
-        Parameters:
-            - path (str): Path to the saved model
+        Expected files:
+            - `empty_else_detector_model.pt`
+            - `empty_else_detector_class_encoder.pkl`
+            - `empty_else_detector_value_encoder.pkl`
+
+        Args:
+            path (str): Directory path where the model is stored.
         """
-        self.model.load_state_dict(torch.load(path))
-        self.model.eval()
+        checkpoint = torch.load(os.path.join(path, "empty_else_detector_model.pt"), map_location=self.device)
+        self.load_state_dict(checkpoint["model_state"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state"])
+
+        with open(os.path.join(path, "empty_else_detector_class_encoder.pkl"), "rb") as f:
+            self.class_encoder = pickle.load(f)
+        with open(os.path.join(path, "empty_else_detector_value_encoder.pkl"), "rb") as f:
+            self.value_encoder = pickle.load(f)
+
+        self.to(self.device)
         print(f"Model loaded from {path}")
-
-    @staticmethod
-    def load_ast(json_path: Path) -> Dict:
-        """
-        Load an AST from a JSON file.
-
-        Parameters:
-            - json_path (Path): Path to the JSON file
-
-        Returns:
-            - dict: AST structure
-        """
-        with json_path.open(encoding="utf-8") as f:
-            return json.load(f)
-
-    @staticmethod
-    def build_child_map(edges: List[Dict[str, int]]) -> Dict[int, List[int]]:
-        """
-        Build a child-parent map from edge definitions.
-
-        Parameters:
-            - edges (List[Dict]): List of edge dictionaries
-
-        Returns:
-            - dict: Parent → children mapping
-        """
-        child_map: Dict[int, List[int]] = defaultdict(list)
-        for e in edges:
-            child_map[e["source"].__int__()].append(e["target"].__int__())
-        return child_map
-
-    @staticmethod
-    def find_empty_else_blocks(ast: Dict) -> List[int]:
-        """
-        Find nodeIds of empty 'else' blocks in the given AST.
-
-        Parameters:
-            - ast (Dict): The AST representation
-
-        Returns:
-            - List[int]: List of nodeIds of empty 'else' blocks
-        """
-        nodes = ast["nodes"]
-        edges = ast["edges"]
-        node_by_id = {n["nodeId"]: n for n in nodes}
-        children_of = EmptyElseDetector.build_child_map(edges)
-
-        empty_else_node_ids = []
-
-        for cond in (n for n in nodes if n.get("class_") == "ConditionalStatementContext"):
-            cond_id = cond["nodeId"]
-            kids = children_of.get(cond_id, [])
-
-            else_ids = [k for k in kids if node_by_id[k].get("value") == "else"]
-            stmt_ids = [k for k in kids if node_by_id[k].get("class_") == "StatementContext"]
-
-            for else_id in else_ids:
-                for stmt_id in stmt_ids:
-                    if else_id > stmt_id:
-                        continue
-
-                    block_ids = [
-                        c for c in children_of.get(stmt_id, [])
-                        if node_by_id[c].get("class_") == "BlockStatementContext"
-                    ]
-
-                    for block_id in block_ids:
-                        stat_ids = [
-                            c for c in children_of.get(block_id, [])
-                            if node_by_id[c].get("class_") == "StatOrDeclListContext"
-                        ]
-                        for stat_id in stat_ids:
-                            if not children_of.get(stat_id):
-                                empty_else_node_ids.append(else_id)
-        return empty_else_node_ids
-
-    @staticmethod
-    def create_node_features(nodes: List[Dict], label_else_ids: List[int]) -> (torch.Tensor, List[int]):
-        """
-        Create input features and labels for graph nodes.
-
-        Parameters:
-            - nodes (List[Dict]): AST nodes
-            - label_else_ids (List[int]): NodeIds of empty 'else' blocks
-
-        Returns:
-            - x: feature matrix
-            - y: label vector
-            - mask: mask vector indicating which nodes are 'else'
-            - target_node_ids: list of else nodeIds
-        """
-        class_labels = [n.get("class_", "") for n in nodes]
-        value_labels = [(n.get("value") if n.get("class_") == "TerminalNodeImpl" else "") for n in nodes]
-
-        class_enc = LabelEncoder()
-        value_enc = LabelEncoder()
-
-        class_ids = class_enc.fit_transform(class_labels)
-        value_ids = value_enc.fit_transform(value_labels)
-
-        x = []
-        y = []
-        mask = []
-        target_node_ids = []
-
-        for i, n in enumerate(nodes):
-            vec = [class_ids[i], value_ids[i]]
-            x.append(vec)
-
-            if n.get("value") == "else":
-                node_id = n["nodeId"]
-                label = 1 if node_id in label_else_ids else 0
-                y.append(label)
-                mask.append(True)
-                target_node_ids.append(node_id)
-            else:
-                y.append(-1)
-                mask.append(False)
-
-        return torch.tensor(x, dtype=torch.long), torch.tensor(y, dtype=torch.long), torch.tensor(mask, dtype=torch.bool), target_node_ids
-
-    def build_data(self, ast_path: Path) -> Data:
-        """
-        Create a PyTorch Geometric Data object from an AST JSON file.
-
-        Parameters:
-        - ast_path (Path): Path to the JSON file
-
-        Returns:
-        - Data: graph data object
-        """
-        ast = self.load_ast(ast_path)
-        empty_else_ids = self.find_empty_else_blocks(ast)
-        nodes = ast["nodes"]
-        edges = ast["edges"]
-
-        x, y, mask, target_node_ids = self.create_node_features(nodes, empty_else_ids)
-
-        edge_index = torch.tensor([[e["source"], e["target"]] for e in edges], dtype=torch.long).t().contiguous()
-
-        data = Data(x=x, edge_index=edge_index, y=y, train_mask=mask)
-        data.target_node_ids = target_node_ids
-        data.file_name = ast_path.name
-        return data
-
-
-if __name__ == "__main__":
-    detector = EmptyElseDetector(data_dir="data", epochs=100, lr=0.01)
-    if Path("model.pt").exists():
-        detector.load_model("model.pt")
-    else:
-        detector.train()
-        detector.save_model("model.pt")
-
-    detector.predict()
-
-    # distinct graphs
-    detector = EmptyElseDetector(data_dir="test_files")
-    detector.load_model("model.pt")
-    detector.predict()
