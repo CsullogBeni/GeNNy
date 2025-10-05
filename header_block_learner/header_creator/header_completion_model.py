@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Data
 
-from graph_learner.abstract_graph_learner import AbstractGraphLearner
+from genny.abs_genny import AbsGenny
 
 
 @dataclass
@@ -26,7 +26,7 @@ class FieldSpec:
     name: Optional[str] = None
 
 
-class HeaderCompletionModel(AbstractGraphLearner):
+class HeaderCompletionModel(AbsGenny):
     """
     Header localization and deterministic AST completion for P4-like headers.
 

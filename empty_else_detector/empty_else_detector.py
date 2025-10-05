@@ -8,15 +8,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 
-from graph_learner.abstract_graph_learner import AbstractGraphLearner
+from genny.abs_genny import AbsGenny
 
 
-class EmptyElseDetector(AbstractGraphLearner):
+class EmptyElseDetector(AbsGenny):
     """
     Classifies empty else blocks in P4 ASTs for better code optimization while identifying dead end code during
     compilation.
     Uses graph neural networks to learn node embeddings and classifies nodes as empty else blocks. Inherit from
-    AbstractGraphLearner that implements the basic training loop and graph processing utilities.
+    AbsGenny that implements the basic training loop and graph processing utilities.
 
     Args:
         hidden_dim (int, optional): Hidden dimension of the GNN. Default is 64.

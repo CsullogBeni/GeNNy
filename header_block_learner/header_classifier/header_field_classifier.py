@@ -8,15 +8,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 
-from graph_learner.abstract_graph_learner import AbstractGraphLearner
+from genny.abs_genny import AbsGenny
 
 
-class HeaderFieldClassifier(AbstractGraphLearner):
+class HeaderFieldClassifier(AbsGenny):
     """
     A graph-based neural classifier for detecting field nodes inside header
     declarations of abstract syntax graphs.
 
-    This model extends `AbstractGraphLearner` and focuses on identifying
+    This model extends `AbsGenny` and focuses on identifying
     `StructFieldContext` nodes that occur under `HeaderTypeDeclarationContext`.
     It leverages a deeper GNN (multiple layers + dropout) to capture
     multi-hop dependencies inside header subtrees.

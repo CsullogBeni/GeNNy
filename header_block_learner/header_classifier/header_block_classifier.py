@@ -10,15 +10,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric
 
-from graph_learner.abstract_graph_learner import AbstractGraphLearner
+from genny.abs_genny import AbsGenny
 
 
-class HeaderBlockClassifier(AbstractGraphLearner):
+class HeaderBlockClassifier(AbsGenny):
     """
     A graph-based neural classifier for detecting header block nodes in
     abstract syntax graphs.
 
-    This model extends `AbstractGraphLearner` and is specialized for
+    This model extends `AbsGenny` and is specialized for
     classifying nodes that correspond to `HeaderTypeDeclarationContext`.
     It uses Graph Neural Networks (GNNs) combined with a linear head to
     produce binary predictions at the node level.

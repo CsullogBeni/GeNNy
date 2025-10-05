@@ -5,7 +5,7 @@ Key ideas:
 - Node attributes are (class_, value). We encode both as categorical IDs
   (via LabelEncoder) and project them with small MLPs to `hidden_dim`,
   then concatenate → [N, 2*hidden_dim].
-- The GNN backbone is a small GCN (see `graph_learner.gnn.GNN`).
+- The GNN backbone is a small GCN (see `genny.gnn.GNN`).
 - Data augmentation during training: per-epoch random pruning.
   Early epochs remove leaves; later epochs remove entire subtrees.
 - Subclasses define the task specifics (labels, training loop, prediction).
@@ -23,10 +23,10 @@ import torch.nn as nn
 from sklearn.preprocessing import LabelEncoder
 from torch_geometric.data import Data
 
-from graph_learner.gnn import GNN
+from genny.gnn import GNN
 
 
-class AbstractGraphLearner(nn.Module, ABC):
+class AbsGenny(nn.Module, ABC):
     """
     Abstract base for AST graph learning tasks.
 
