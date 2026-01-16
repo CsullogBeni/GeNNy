@@ -1,10 +1,10 @@
 """
-main.py – Runner for HeaderCompletionModel (training / validation-time batch inference)
+main.py -> Runner for HeaderCompletionModel (training / validation-time batch inference)
 
 Usage
 -----
-- TRAIN_MODE = True  → train on (full, reduced) pairs found in PAIRS_DIR and save to MODEL_DIR.
-- TRAIN_MODE = False → run header completion on all *.json files under VALIDATION_DIR.
+- TRAIN_MODE = True  -> train on (full, reduced) pairs found in PAIRS_DIR and save to MODEL_DIR.
+- TRAIN_MODE = False -> run header completion on all *.json files under VALIDATION_DIR.
 
 Configuration
 -------------
@@ -257,7 +257,7 @@ def additions_for_file(rel_path: str,
     Args:
         rel_path: Path of the file relative to ``VALIDATION_DIR``.
         global_adds: Mapping of additions applied to all files.
-        per_file: Mapping from glob pattern → additions mapping to apply.
+        per_file: Mapping from glob pattern -> additions mapping to apply.
 
     Returns:
         A normalized mapping (see :func:`_normalize_additions_keys`) of header
@@ -338,7 +338,7 @@ def complete_directory(model: HeaderCompletionModel,
         rel = str(p.relative_to(root)).replace("\\", "/")
         adds = additions_for_file(rel, global_adds, per_file_adds)
         if not adds:
-            print(f"  - {rel}: no additions configured → SKIP")
+            print(f"  - {rel}: no additions configured -> SKIP")
             continue
 
         if output_dir:
@@ -349,9 +349,9 @@ def complete_directory(model: HeaderCompletionModel,
 
         try:
             written = model.complete_graph(str(p), adds, output_path=str(out_path))
-            print(f"  - {rel} → OK  (written: {written})")
+            print(f"  - {rel} -> OK  (written: {written})")
         except Exception as e:
-            print(f"  - {rel} → ERROR: {e}")
+            print(f"  - {rel} -> ERROR: {e}")
 
 
 def run() -> None:

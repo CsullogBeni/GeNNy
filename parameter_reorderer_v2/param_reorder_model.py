@@ -13,7 +13,7 @@ class ParamOrderModel:
         self.embedding_dim = embedding_dim
         self.epochs = epochs
 
-        self.node_embedding = nn.Embedding(10_000, embedding_dim)  # nagy elemszám, padding miatt
+        self.node_embedding = nn.Embedding(10_000, embedding_dim)
         self.model = self.OrderPredictionModel(embedding_dim)
         self.optimizer = optim.Adam(
             list(self.model.parameters()) + list(self.node_embedding.parameters()), lr=lr

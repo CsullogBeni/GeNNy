@@ -4,7 +4,7 @@ Abstract base class and utilities for learning over AST graphs.
 Key ideas:
 - Node attributes are (class_, value). We encode both as categorical IDs
   (via LabelEncoder) and project them with small MLPs to `hidden_dim`,
-  then concatenate → [N, 2*hidden_dim].
+  then concatenate -> [N, 2*hidden_dim].
 - The GNN backbone is a small GCN (see `genny.gnn.GNN`).
 - Data augmentation during training: per-epoch random pruning.
   Early epochs remove leaves; later epochs remove entire subtrees.
@@ -62,7 +62,7 @@ class AbsGenny(nn.Module, ABC):
         self.class_encoder = LabelEncoder()
         self.value_encoder = LabelEncoder()
 
-        # Small projection MLPs ("autoencoders") for integer IDs → hidden_dim
+        # Small projection MLPs ("autoencoders") for integer IDs -> hidden_dim
         self.class_autoencoder = nn.Sequential(
             nn.Linear(1, hidden_dim),
             nn.ReLU(inplace=False),
@@ -132,7 +132,7 @@ class AbsGenny(nn.Module, ABC):
 
         Notes:
             - Guarantees sentinel tokens are present:
-              class → `<UNK_CLASS>`, value → `<PAD>`, `<NONE>`, `<UNK_VALUE>`.
+              class -> `<UNK_CLASS>`, value -> `<PAD>`, `<NONE>`, `<UNK_VALUE>`.
         """
         class_values, value_values = [], []
 
@@ -432,7 +432,7 @@ class AbsGenny(nn.Module, ABC):
             g = self._load_graph_from_json(filepath)
             data = self._graph_to_pyg(g)
             out = self.gnn(data.x, data.edge_index)
-        print(f"[infer] '{filepath}' → emb.shape={tuple(out.shape)}")
+        print(f"[infer] '{filepath}' -> emb.shape={tuple(out.shape)}")
         return out
 
     # -----------------------------------------------------------

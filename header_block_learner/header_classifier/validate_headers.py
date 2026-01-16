@@ -46,10 +46,10 @@ def _is_header_block(graph: nx.DiGraph, node_id: int) -> bool:
 
     The check follows the grammar chain:
         InputContext
-          → DeclarationContext
-          → TypeDeclarationContext
-          → DerivedTypeDeclarationContext
-          → HeaderTypeDeclarationContext
+          -> DeclarationContext
+          -> TypeDeclarationContext
+          -> DerivedTypeDeclarationContext
+          -> HeaderTypeDeclarationContext
 
     Args:
         graph (nx.DiGraph): Directed AST graph with node attributes.

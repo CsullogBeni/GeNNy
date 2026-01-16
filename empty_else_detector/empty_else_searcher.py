@@ -11,14 +11,12 @@ from typing import List, Dict, Any
 
 
 def load_ast(json_path: Path) -> Dict[str, Any]:
-    """Betölti az AST‑t, visszaadja a node‑okat és az él‑listát."""
     with json_path.open(encoding="utf‑8") as f:
         data = json.load(f)
     return data
 
 
 def build_child_map(edges: List[Dict[str, int]]) -> Dict[int, List[int]]:
-    """`source → [target ...]` leképezés az él‑listából."""
     child_map: Dict[int, List[int]] = {}
     for e in edges:
         child_map.setdefault(e["source"], []).append(e["target"])
@@ -26,7 +24,6 @@ def build_child_map(edges: List[Dict[str, int]]) -> Dict[int, List[int]]:
 
 
 def find_empty_else_blocks(ast: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Visszaadja az üres else ágakat leíró dict‑ek listáját."""
     nodes = ast["nodes"]
     edges = ast["edges"]
 
@@ -38,17 +35,14 @@ def find_empty_else_blocks(ast: Dict[str, Any]) -> List[Dict[str, Any]]:
         cond_id = cond["nodeId"]
         kids = children_of.get(cond_id, [])
 
-        # else kulcsszó és StatementContext gyerekek
         else_ids = [k for k in kids if node_by_id[k].get("value") == "else"]
         stmt_ids = [k for k in kids if node_by_id[k].get("class_") == "StatementContext"]
 
         for else_id in else_ids:
             for stmt_id in stmt_ids:
-                # az AST‑ben az 'else' token *megelőzi* a blokkot ⇒ else_id < stmt_id
                 if else_id > stmt_id:
                     continue
 
-                # BlockStatementContext a StatementContext alatt
                 block_ids = [
                     c
                     for c in children_of.get(stmt_id, [])
@@ -56,14 +50,12 @@ def find_empty_else_blocks(ast: Dict[str, Any]) -> List[Dict[str, Any]]:
                 ]
 
                 for block_id in block_ids:
-                    # StatOrDeclListContext gyerek a blokkban
                     stat_ids = [
                         c
                         for c in children_of.get(block_id, [])
                         if node_by_id[c].get("class_") == "StatOrDeclListContext"
                     ]
                     for stat_id in stat_ids:
-                        # nincsenek további gyerekei ⇒ üres blokknak számít
                         if not children_of.get(stat_id):
                             results.append(
                                 {
@@ -77,18 +69,17 @@ def find_empty_else_blocks(ast: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
-    # json_path = Path(r"data/renamed_version_to_ipv4Version.json")
     json_path = Path(r"data/basic_p4_v2_normalized.json")
     ast = load_ast(json_path)
     empties = find_empty_else_blocks(ast)
 
     if not empties:
-        print("Nem találtam üres else blokkot.")
+        print("Empty else block not found.")
     else:
-        print(f"{len(empties)} üres else blokk:")
+        print(f"{len(empties)} Empty else block:")
         for e in empties:
             print(
-                f"  – if‑else kezdődik a forrás {e['line']}. sorában "
+                f"  – if‑else block in {e['line']}. line "
                 f"(Conditional nodeId={e['conditional_nodeId']})"
             )
 

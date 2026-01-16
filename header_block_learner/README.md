@@ -117,7 +117,7 @@ Utilities:
 ## Tips & conventions
 
 - All node ids are **integers**; config files may use string ids but are normalized to ints internally.
-- Graphs are expected to be **acyclic** and to have consistent parent→child direction as produced by the AST builder used in your pipeline.
+- Graphs are expected to be **acyclic** and to have consistent parent->child direction as produced by the AST builder used in your pipeline.
 - Checkpoints are standard `torch.save` bundles that include the model and optimizer states plus encoders where applicable (see `*_classifier.load(...)`).
 
 ---
@@ -125,10 +125,10 @@ Utilities:
 ## Troubleshooting
 
 - `ModuleNotFoundError: graph_learner ...`  
-  → Install the missing package(s) or add their folders to `PYTHONPATH`.
+  -> Install the missing package(s) or add their folders to `PYTHONPATH`.
 
 - `torch_geometric` installation errors  
-  → Ensure your `torch` version matches the prebuilt wheels. See the PyG install docs.
+  -> Ensure your `torch` version matches the prebuilt wheels. See the PyG install docs.
 
-- Pretty-printer output empty/garbled  
-  → Verify the AST graph has `label`/`line` attributes and edge directions expected by your `PrettyPrinter` implementation.
+- Prcetty-printer output empty/garbled  
+  -> Verify the AST graph has `label`/`line` attributes and edge directions expected by your `PrettyPrinter` implementation.

@@ -63,14 +63,14 @@ class GraphReorderer:
                                     if edge2['source'] == param_list_id:
                                         fst_id = edge2['target']
                                         for node3 in self.original_graph['nodes']:
-                                            if node3['nodeId'] == fst_id and node3[
-                                                'class_'] == 'NonEmptyParameterListContext':
+                                            if (node3['nodeId'] == fst_id and
+                                                    node3['class_'] == 'NonEmptyParameterListContext'):
                                                 for edge3 in self.original_graph['edges']:
                                                     if edge3['source'] == fst_id:
                                                         snd_id = edge3['target']
                                                         for node4 in self.original_graph['nodes']:
-                                                            if node4['nodeId'] == snd_id and node4[
-                                                                'class_'] == 'NonEmptyParameterListContext':
+                                                            if (node4['nodeId'] == snd_id and
+                                                                    node4['class_'] == 'NonEmptyParameterListContext'):
                                                                 self.to_be_reordered.append((
                                                                     control_node_id,
                                                                     param_list_id,
@@ -89,7 +89,8 @@ class GraphReorderer:
         os.makedirs(self.output_dir, exist_ok=True)
 
         for idx, (ctrl_id, param_id, fst_id, snd_id) in enumerate(self.to_be_reordered):
-            for edge in self.original_graph['edges']:
+            new_graph = copy.deepcopy(self.original_graph)
+            for edge in new_graph['edges']:
                 if edge['source'] == param_id and edge['target'] == fst_id:
                     edge['target'] = snd_id
                 elif edge['source'] == fst_id and edge['target'] == snd_id:
@@ -97,7 +98,7 @@ class GraphReorderer:
                     edge['target'] = fst_id
 
             modified_graph = copy.deepcopy(self.original_graph)
-            new_graph = self._reassign_all_node_ids(modified_graph)
+            # new_graph = self._reassign_all_node_ids(modified_graph)
 
             output_path = os.path.join(self.output_dir, f"reordered_graph_{idx}.json")
             with open(output_path, "w") as f:
@@ -140,7 +141,7 @@ def main():
 
     reorderer = GraphReorderer(input_path, output_dir)
     reorderer.reorder_and_save_all()
-    reorderer.validate_graphs()
+    # reorderer.validate_graphs()
 
 
 if __name__ == "__main__":

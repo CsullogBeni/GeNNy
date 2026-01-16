@@ -63,8 +63,8 @@ class HeaderBlockClassifier(AbsGenny):
         A node is labeled as positive (1.0) if it matches the structural
         pattern leading to a `HeaderTypeDeclarationContext`:
 
-            InputContext → DeclarationContext → TypeDeclarationContext
-            → DerivedTypeDeclarationContext → HeaderTypeDeclarationContext
+            InputContext -> DeclarationContext -> TypeDeclarationContext
+            -> DerivedTypeDeclarationContext -> HeaderTypeDeclarationContext
 
         All other nodes receive a label of 0.0.
 

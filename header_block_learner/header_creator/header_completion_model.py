@@ -529,7 +529,7 @@ class HeaderCompletionModel(AbsGenny):
 
         Args:
             G: AST graph.
-            parent: Parent node id (edge ``parent → new`` will be added).
+            parent: Parent node id (edge ``parent -> new`` will be added).
             value: Terminal token value to store.
 
         Returns:
@@ -568,8 +568,8 @@ class HeaderCompletionModel(AbsGenny):
         Materialize a complete ``StructFieldContext`` subtree under a field list.
 
         The produced structure mirrors typical P4 grammar fragments:
-        type branch (``TypeRef → TypeName → PrefixedType → Type_or_id``),
-        name branch (``Name → NonTypeName → Type_or_id``), and a trailing ``;``.
+        type branch (``TypeRef -> TypeName -> PrefixedType -> Type_or_id``),
+        name branch (``Name -> NonTypeName -> Type_or_id``), and a trailing ``;``.
 
         Args:
             G: AST graph.
@@ -601,11 +601,11 @@ class HeaderCompletionModel(AbsGenny):
                 cur = sorted(list_children, key=int)[0]
                 continue
             elif field_children and not list_children:
-                # Legacy/partial node: has a field but no "rest" → create it
+                # Legacy/partial node: has a field but no "rest" -> create it
                 cur = HeaderCompletionModel._add_node(G, cur, "StructFieldListContext")
                 break
             else:
-                # Unexpected shape → treat as tail
+                # Unexpected shape -> treat as tail
                 break
 
         # At tail: add (StructFieldContext, StructFieldListContext)
@@ -797,7 +797,7 @@ class HeaderCompletionModel(AbsGenny):
             "value_encoder": getattr(self, "value_encoder", None),
             "encoders_serialized": enc_ser,
         }, os.path.join(path, "header_completion_model.pt"))
-        print(f"HeaderCompletionModel saved → {path}")
+        print(f"HeaderCompletionModel saved -> {path}")
 
     def load_model(self, path: str) -> None:
         """
@@ -855,7 +855,7 @@ class HeaderCompletionModel(AbsGenny):
             self.value_encoder = ckpt.get("value_encoder")
 
         self.to(self.device)
-        print(f"HeaderCompletionModel loaded ← {path}")
+        print(f"HeaderCompletionModel loaded <- {path}")
 
     def _label_nodes(self, graph: nx.DiGraph) -> torch.Tensor:
         """
