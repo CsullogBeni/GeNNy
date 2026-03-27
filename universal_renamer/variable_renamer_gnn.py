@@ -334,3 +334,81 @@ if __name__ == "__main__":
 
     renamed_graph = gnn.rename_variable("dstAddr", "destination_address")
     gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_15.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("srcAddr", "source_address")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_16.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("etherType", "ethernet_type")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_17.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("version", "version_number")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_18.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("ihl", "internet_header_length")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_19.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("diffserv", "diffserv_code")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_20.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("totalLen", "total_length")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_21.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("identification", "identification_number")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_22.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("flags", "flags_number")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_23.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("fragOffset", "fragment_offset")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_24.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("ttl", "time_to_live")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_25.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("protocol", "protocol_number")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_26.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("hdrChecksum", "header_checksum")
+    gnn.compare_graphs(graph, renamed_graph)
+
+    file = os.path.join("test_files", "basic_p4_with_new_header_27.json")
+    graph = gnn.load_json_graph(file)
+
+    renamed_graph = gnn.rename_variable("srcAddr", "source_address")
+    gnn.compare_graphs(graph, renamed_graph)
